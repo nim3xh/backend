@@ -1,0 +1,22 @@
+{
+  "watch": [
+    "*.js",
+    "routes/**/*.js",
+    ".env"
+  ],
+  "ignore": [
+    "node_modules/**",
+    "dashboards/**",
+    "events/**",
+    "holidays/**",
+    "products/**",
+    "samplefiles/**",
+    "stripe/**",
+    "*.log",
+    "*.csv",
+    "*.txt",
+    "*.md"
+  ],
+  "ext": "js,json",
+  "delay": "1000"
+}
