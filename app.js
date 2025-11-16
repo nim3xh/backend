@@ -641,5 +641,110 @@ app.get("/subscription-emails-stats", (req, res) => {
 });
 
 
+// ==== WHITELIST CONFIGURATION ====
+// Permanent whitelist emails
+const PERMANENT_EMAILS = [
+  "Sachin.techpro@gmail.com"
+];
+
+// Temporary whitelist emails (valid until Dec 31, 2025)
+const TEMPORARY_EMAILS = [
+  "amaribelgaum@gmail.com",
+  "rajitthetrader@gmail.com",
+  "kirankgururaj@gmail.com",
+  "umesh24trading@gmail.com",
+  "josephreddy2024@gmail.com",
+  "nishlionking@gmail.com",
+  "reuviethetrader@gmail.com",
+  "manoyennam@gmail.com",
+  "sindhushivalik@gmail.com",
+  "aktradingmillion@gmail.com",
+  "anantbelgaum@gmail.com"
+];
+
+const TEMPORARY_EXPIRATION = new Date('2025-12-31T23:59:59');
+
+// Helper function to check if email is whitelisted
+function isWhitelistedEmail(email) {
+  const emailLower = email.toLowerCase();
+  
+  // Check permanent emails
+  if (PERMANENT_EMAILS.map(e => e.toLowerCase()).includes(emailLower)) {
+    return { whitelisted: true, isTemporary: false };
+  }
+  
+  // Check temporary emails with expiration
+  if (TEMPORARY_EMAILS.map(e => e.toLowerCase()).includes(emailLower)) {
+    const now = new Date();
+    if (now <= TEMPORARY_EXPIRATION) {
+      return { whitelisted: true, isTemporary: true };
+    }
+  }
+  
+  return { whitelisted: false, isTemporary: false };
+}
+
+
+// ==== EVENTS ENDPOINT ====
+/**
+ * Get events by date (no subscription required)
+ * GET /events/by-date?date=YYYY-MM-DD
+ */
+app.get('/events/by-date', (req, res) => {
+  const { date } = req.query;
+
+  if (!date) {
+    return res.status(400).json({ success: false, message: 'Date query is required. Format: YYYY-MM-DD' });
+  }
+
+  try {
+    const path = require('path');
+    const fs = require('fs');
+    const csv = require('csv-parser');
+    
+    const csvFilePath = path.join(__dirname, 'events', '2025-events.csv');
+    
+    // Check if the CSV file exists
+    if (!fs.existsSync(csvFilePath)) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Events data file not found.' 
+      });
+    }
+    
+    const results = [];
+
+    fs.createReadStream(csvFilePath)
+      .pipe(csv())
+      .on('data', (row) => {
+        // Normalize date for comparison
+        const eventDate = row['Date']?.trim();
+        if (eventDate === date) {
+          results.push({
+            date: eventDate,
+            event: row['Event Name']?.trim(),
+            start_time: row['Start Time (EST)']?.trim(),
+            duration: row['Duration']?.trim(),
+          });
+        }
+      })
+      .on('end', () => {
+        if (results.length > 0) {
+          res.json({ success: true, events: results });
+        } else {
+          res.status(404).json({ success: false, message: 'No events found for the given date.' });
+        }
+      })
+      .on('error', (err) => {
+        console.error('Error reading CSV file:', err);
+        res.status(500).json({ success: false, message: 'Internal server error.' });
+      });
+  } catch (error) {
+    console.error('Error fetching events:', error.message);
+    return res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+});
+
+
 // ==== EXPORT APP ====
 module.exports = app;
