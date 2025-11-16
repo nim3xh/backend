@@ -641,6 +641,343 @@ app.get("/subscription-emails-stats", (req, res) => {
 });
 
 
+// ==== FILE AND PRODUCT DOWNLOAD ENDPOINTS ====
+
+/**
+ * Get file creation times from dashboards
+ * GET /file-creation-time
+ */
+app.get('/file-creation-time', async (req, res) => {
+  try {
+    const path = require('path');
+    const fs = require('fs');
+    
+    const dashboardsPath = path.join(__dirname, 'dashboards');
+    console.log("Checking if dashboards folder exists:", fs.existsSync(dashboardsPath));
+
+    if (!fs.existsSync(dashboardsPath)) {
+      return res.status(404).send("Dashboards folder not found.");
+    }
+
+    const apexidFolders = fs.readdirSync(dashboardsPath).filter((item) =>
+      fs.statSync(path.join(dashboardsPath, item)).isDirectory()
+    );
+    console.log("Apexid folders found:", apexidFolders);
+
+    if (apexidFolders.length === 0) {
+      return res.status(404).send("No apexid folders found.");
+    }
+
+    const allFileDetails = [];
+    for (const apexid of apexidFolders) {
+      const folderPath = path.join(dashboardsPath, apexid);
+      const files = fs.readdirSync(folderPath);
+
+      console.log(`Files in folder ${apexid}:`, files);
+
+      for (const file of files) {
+        const filePath = path.join(folderPath, file);
+        const stats = fs.statSync(filePath);
+
+        allFileDetails.push({
+          apexid: apexid,
+          fileName: file,
+          createdAt: stats.birthtime.toISOString(),
+        });
+      }
+    }
+
+    if (allFileDetails.length === 0) {
+      return res.status(404).send("No files found in any apexid folder.");
+    }
+
+    res.status(200).json(allFileDetails);
+  } catch (error) {
+    console.error('Error fetching file creation times:', error);
+    res.status(500).send('Failed to retrieve file creation times.');
+  }
+});
+
+/**
+ * Download PropTraderPro indicator
+ * GET /download/proptraderpro
+ */
+app.get("/download/proptraderpro", (req, res) => {
+  const path = require('path');
+  const fs = require('fs');
+  
+  const filePath = path.resolve(__dirname, "dll", "indicator.zip");
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send("File not found");
+  }
+  res.download(filePath, "indicator.zip");
+});
+
+// Exact product names (same as folders)
+const PRODUCT_NAMES = [
+  "Prop Trade Planner - Dr.Markets",
+  "TradeRx",
+  "JournalX",
+  "TradeCam",
+  "Trade Video Recorder",
+  "Regular Updates",
+  "White-Glove Prop Trading Environment Setup",
+  "Custom Strategy Development (Advisory)",
+  "One-on-one Prop Firm Journey Coaching",
+  "Prop Trade Planner Dr.Markets Trial",
+  "TradeRx - Trial",
+  "JournalX Trial",
+  "TradeCam Trial",
+  "Trade Video Recorder Trial",
+  "Core Bundle Trial — Planner + TradeRx + JournalX",
+  "Core Bundle — Planner + TradeRx + JournalX",
+];
+
+/**
+ * Download specific product by name
+ * GET /download/:productName
+ */
+app.get("/download/:productName", (req, res) => {
+  const path = require('path');
+  const fs = require('fs');
+  
+  const requested = req.params.productName;
+
+  // Find an exact match (case-insensitive)
+  const match = PRODUCT_NAMES.find(
+    (name) => name.toLowerCase() === requested.toLowerCase()
+  );
+
+  if (!match) {
+    return res
+      .status(404)
+      .send("Invalid product name. Please use an exact name.");
+  }
+
+  const folderPath = path.resolve(__dirname, "products", match);
+  const filePath = path.join(folderPath, `${match}.zip`);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send("File not found.");
+  }
+
+  res.download(filePath, `${match}.zip`);
+});
+
+/**
+ * Get current time in Pacific Standard Time
+ * GET /current-time
+ */
+app.get('/current-time', (req, res) => {
+  const timeZone = 'America/Los_Angeles'; // Pacific Standard Time (PST)
+  
+  const getFormattedTime = () => {
+    const now = new Date();
+    
+    const formattedDate = new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      timeZone,
+    }).format(now);
+
+    const formattedTime = new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+      hour12: true,
+      timeZone,
+    }).format(now);
+
+    return `${formattedDate} ${formattedTime}`; 
+  };
+  
+  const time = getFormattedTime();
+  res.json({ time });
+});
+
+/**
+ * Download demo CSV file
+ * GET /download/demo
+ */
+app.get('/download/demo', (req, res) => {
+  const path = require('path');
+  const fs = require('fs');
+  
+  const filePath = path.join(__dirname, 'upload_sample.csv');
+  const fileName = 'dashboard_data_sample.csv';
+
+  res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+  res.setHeader('Content-Type', 'text/csv');
+
+  const fileStream = fs.createReadStream(filePath);
+  fileStream.pipe(res);
+
+  fileStream.on('error', (err) => {
+    console.error('Error reading the file:', err);
+    res.status(500).send('Failed to read the file.');
+  });
+});
+
+/**
+ * Download _Trades.csv file for specific account number
+ * GET /download/:accountNumber
+ * Note: This route should be defined after /download/demo and /download/proptraderpro
+ * to avoid conflicts
+ */
+app.get('/download/trades/:accountNumber', (req, res) => {
+  try {
+    const path = require('path');
+    const fs = require('fs');
+    
+    const { accountNumber } = req.params;
+    console.log(accountNumber);
+
+    const dashboardsPath = path.join(__dirname, 'dashboards', accountNumber);
+    console.log(`Checking for files for account number ${accountNumber} in folder: ${dashboardsPath}`);
+
+    if (!fs.existsSync(dashboardsPath)) {
+      return res.status(404).send(`No folder found for account number ${accountNumber}.`);
+    }
+
+    const files = fs.readdirSync(dashboardsPath).filter((file) => file.endsWith('_Trades.csv'));
+
+    if (files.length === 0) {
+      return res.status(404).send(`No _Trades.csv file found for account number ${accountNumber}.`);
+    }
+
+    if (files.length > 1) {
+      return res.status(400).send(`Multiple _Trades.csv files found for account number ${accountNumber}. Please ensure only one file exists.`);
+    }
+
+    const filePath = path.join(dashboardsPath, files[0]);
+    const fileName = files[0];
+
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+    res.setHeader('Content-Type', 'text/csv');
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+
+    fileStream.on('error', (err) => {
+      console.error('Error reading the file:', err);
+      res.status(500).send('Failed to read the file.');
+    });
+  } catch (error) {
+    console.error(`Error while downloading _Trades.csv file for account number ${req.params.accountNumber}:`, error);
+    res.status(500).send('An error occurred while processing your request.');
+  }
+});
+
+/**
+ * Download sample files
+ * GET /samplefiles/:filename
+ */
+app.get('/samplefiles/:filename', (req, res) => {
+  const path = require('path');
+  const fs = require('fs');
+  
+  const { filename } = req.params;
+
+  // Sanitize filename to prevent directory traversal
+  if (!/^[\w\-\.]+\.csv$/.test(filename)) {
+    return res.status(400).send('Invalid file name.');
+  }
+
+  const filePath = path.join(__dirname, 'samplefiles', filename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).send(`File "${filename}" not found.`);
+  }
+
+  res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+  res.setHeader('Content-Type', 'text/csv');
+
+  const fileStream = fs.createReadStream(filePath);
+  fileStream.pipe(res);
+
+  fileStream.on('error', (err) => {
+    console.error('Error streaming file:', err);
+    res.status(500).send('Failed to read the file.');
+  });
+});
+
+/**
+ * Alert hook endpoint for testing
+ * POST /alert-hook
+ */
+app.post('/alert-hook', (req, res) => {
+  try {
+    const path = require('path');
+    const fs = require('fs');
+    
+    const dashboardsPath = path.join(__dirname, 'dashboards', 'test');
+    const filePath = path.join(dashboardsPath, 'test.txt');
+
+    // Ensure the test folder exists
+    if (!fs.existsSync(dashboardsPath)) {
+      fs.mkdirSync(dashboardsPath, { recursive: true });
+    }
+
+    // Prepare the input data with a newline
+    const inputData = JSON.stringify(req.body) + '\n';
+
+    // Append the input data to the file
+    fs.appendFileSync(filePath, inputData);
+
+    console.log('Data appended to file:', inputData.trim());
+    res.status(200).send('Data appended successfully.');
+  } catch (error) {
+    console.error('Error appending data:', error);
+    res.status(500).send('Failed to append data.');
+  }
+});
+
+/**
+ * Check if a date is a holiday
+ * GET /is-holiday?date=YYYY-MM-DD
+ */
+app.get('/is-holiday', (req, res) => {
+  const path = require('path');
+  const fs = require('fs');
+  const csv = require('csv-parser');
+  
+  const { date } = req.query;
+
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ success: false, message: "Date is required in YYYY-MM-DD format." });
+  }
+
+  const [year, month, day] = date.split('-');
+  const formattedInput = `${parseInt(month)}/${parseInt(day)}/${year}`;
+
+  const holidaysPath = path.join(__dirname, 'holidays', 'holidays.csv');
+  let isHoliday = false;
+  let holidayName = '';
+
+  fs.createReadStream(holidaysPath)
+    .pipe(csv())
+    .on('data', (row) => {
+      const observedDate = row['Observed Date']?.trim();
+      if (observedDate === formattedInput) {
+        isHoliday = true;
+        holidayName = row['Holiday Name']?.trim();
+      }
+    })
+    .on('end', () => {
+      if (isHoliday) {
+        res.json({ success: true, isHoliday: true, holidayName });
+      } else {
+        res.json({ success: true, isHoliday: false, message: "Not a holiday." });
+      }
+    })
+    .on('error', (err) => {
+      console.error('Error reading holidays CSV:', err);
+      res.status(500).json({ success: false, message: "Internal server error while reading holiday data." });
+    });
+});
+
+
 // ==== WHITELIST CONFIGURATION ====
 // Permanent whitelist emails
 const PERMANENT_EMAILS = [

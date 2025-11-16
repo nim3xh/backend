@@ -1,0 +1,2 @@
+# This file ensures the directory is tracked by git
+# Add holidays.csv here with columns: Observed Date, Holiday Name
