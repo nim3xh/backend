@@ -11,8 +11,8 @@ const {
 const app = express();
 
 // ==== WEBHOOK MIDDLEWARE (must be BEFORE express.json()) ====
-// ⚠️ DISABLED: Uncomment to enable automatic subscription emails
-// Stripe webhooks need raw body for signature verification
+// ⚠️ DISABLED: Using CSV file watcher instead
+// Emails are sent automatically when stripe/subscriptions.csv is updated
 /*
 app.post(
   "/stripe/webhook",
@@ -468,6 +468,82 @@ app.post("/send-test-email", async (req, res) => {
     });
   } catch (err) {
     console.error("Error sending email:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+});
+
+
+// ==== MANUAL SUBSCRIPTION EMAIL SENDER ====
+
+/**
+ * Send subscription email manually by plan nickname
+ * POST /send-subscription-email
+ * 
+ * Body: {
+ *   "email": "customer@example.com",
+ *   "planNickname": "TradeCam",
+ *   "customerName": "John Doe" (optional)
+ * }
+ */
+app.post("/send-subscription-email", async (req, res) => {
+  try {
+    const { email, planNickname, customerName } = req.body;
+    
+    // Validate required fields
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing 'email' in request body",
+      });
+    }
+    
+    if (!planNickname) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing 'planNickname' in request body",
+      });
+    }
+    
+    // Import required modules
+    const { getDownloadLinkByPlanNickname } = require("./productLinkMapper");
+    
+    // Get download link based on plan nickname
+    const downloadLink = getDownloadLinkByPlanNickname(planNickname);
+    
+    // Prepare customer name
+    const name = customerName || email.split("@")[0] || "Valued Customer";
+    
+    console.log(`\n📧 Manual subscription email request:`);
+    console.log(`   Email: ${email}`);
+    console.log(`   Plan: ${planNickname}`);
+    console.log(`   Customer Name: ${name}`);
+    console.log(`   Download Link: ${downloadLink}`);
+    
+    // Send the subscription email
+    await sendSubscriptionEmail({
+      to: email,
+      productName: planNickname,
+      downloadLink: downloadLink,
+      customerName: name,
+    });
+    
+    console.log(`✅ Manual subscription email sent successfully to ${email}\n`);
+    
+    return res.json({
+      success: true,
+      message: "Subscription email sent successfully",
+      details: {
+        email: email,
+        planNickname: planNickname,
+        downloadLink: downloadLink,
+        customerName: name,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Error sending manual subscription email:", err);
     return res.status(500).json({
       success: false,
       error: err.message,
