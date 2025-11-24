@@ -1,0 +1,17 @@
+{
+  "id": "regular-updates",
+  "name": "Regular Updates",
+  "price": 29.99,
+  "billingPeriod": "month",
+  "description": "Stay current with latest features",
+  "features": [
+    "Monthly Updates",
+    "New Features",
+    "Bug Fixes",
+    "Priority Support"
+  ],
+  "subscriptionLink": "",
+  "featured": false,
+  "status": "active",
+  "order": 6
+}

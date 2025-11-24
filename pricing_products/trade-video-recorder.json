@@ -1,0 +1,17 @@
+{
+  "id": "trade-video-recorder",
+  "name": "Trade Video Recorder",
+  "price": 29.99,
+  "billingPeriod": "month",
+  "description": "Record and review your trading sessions",
+  "features": [
+    "Session Recording",
+    "Playback Analysis",
+    "Annotations",
+    "Export Options"
+  ],
+  "subscriptionLink": "",
+  "featured": false,
+  "status": "active",
+  "order": 5
+}

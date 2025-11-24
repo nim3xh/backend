@@ -1,0 +1,17 @@
+{
+  "id": "traderx-trial",
+  "name": "TradeRx - Trial",
+  "price": 74.99,
+  "billingPeriod": "trial",
+  "description": "Try TradeRx risk-free",
+  "features": [
+    "Full Access",
+    "14-Day Trial",
+    "No Commitment",
+    "Cancel Anytime"
+  ],
+  "subscriptionLink": "",
+  "featured": false,
+  "status": "active",
+  "order": 11
+}

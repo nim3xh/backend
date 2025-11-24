@@ -1,0 +1,17 @@
+{
+  "id": "coaching",
+  "name": "One-on-One Prop Firm Journey Coaching",
+  "price": 349.99,
+  "billingPeriod": "one-time",
+  "description": "Personal coaching for prop firm success",
+  "features": [
+    "1-on-1 Sessions",
+    "Personalized Plan",
+    "Weekly Check-ins",
+    "Email Support"
+  ],
+  "subscriptionLink": "",
+  "featured": false,
+  "status": "active",
+  "order": 9
+}

@@ -1,0 +1,17 @@
+{
+  "id": "tradecam",
+  "name": "TradeCam",
+  "price": 24.99,
+  "billingPeriod": "month",
+  "description": "Screen recording for traders",
+  "features": [
+    "HD Screen Recording",
+    "Multi-Monitor Support",
+    "Cloud Storage",
+    "Easy Sharing"
+  ],
+  "subscriptionLink": "",
+  "featured": false,
+  "status": "active",
+  "order": 4
+}

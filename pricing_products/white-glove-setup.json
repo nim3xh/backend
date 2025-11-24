@@ -1,0 +1,17 @@
+{
+  "id": "white-glove-setup",
+  "name": "White-Glove Prop Trading Environment Setup",
+  "price": 249.99,
+  "billingPeriod": "one-time",
+  "description": "Complete professional setup service",
+  "features": [
+    "Full Environment Setup",
+    "Custom Configuration",
+    "Training Session",
+    "30-Day Support"
+  ],
+  "subscriptionLink": "",
+  "featured": false,
+  "status": "active",
+  "order": 7
+}

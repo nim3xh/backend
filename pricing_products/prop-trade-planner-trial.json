@@ -1,0 +1,17 @@
+{
+  "id": "prop-trade-planner-trial",
+  "name": "Prop Trade Planner Trial",
+  "price": 59.99,
+  "billingPeriod": "trial",
+  "description": "Try Prop Trade Planner risk-free",
+  "features": [
+    "Full Access",
+    "14-Day Trial",
+    "No Commitment",
+    "Cancel Anytime"
+  ],
+  "subscriptionLink": "",
+  "featured": false,
+  "status": "active",
+  "order": 10
+}

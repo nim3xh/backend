@@ -6,6 +6,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 const { sendEmail, sendSubscriptionEmail } = require("./emailService");
 const {
   shouldSendEmail,
@@ -213,92 +214,73 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
   apiVersion: "2023-10-16",
 });
 
-// ==== WHITELISTS ====
-// Add your permanent & temporary whitelisted emails here:
-const permanentWhitelist = [
-  "nim3xh@gmail.com",
-];
+// ==== SUBSCRIPTION MANAGEMENT ====
+// File paths for subscription storage
+const SUBSCRIPTIONS_DIR = path.join(__dirname, 'subscriptions');
+const PERMANENT_SUBSCRIPTIONS_FILE = path.join(SUBSCRIPTIONS_DIR, 'permanent_subscriptions.json');
+const TEMPORARY_SUBSCRIPTIONS_FILE = path.join(SUBSCRIPTIONS_DIR, 'temporary_subscriptions.json');
 
-const temporaryWhitelist = [
-  {
-    email: "amaribelgaum@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "rajitthetrader@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "kirankgururaj@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "umesh24trading@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "josephreddy2024@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "nishlionking@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "reuviethetrader@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "manoyennam@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "sindhushivalik@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "aktradingmillion@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "anantbelgaum@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email:"aicashhustler@gmail.com",
-    start_date: "2025-11-01T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
-  },
-  {
-    email: "jakebrescher@gmail.com",
-    start_date: "2025-11-24T00:00:00.000Z",
-    end_date: "2025-12-31T23:59:59.999Z",
-    planNickname: "all"
+// Ensure subscriptions directory exists
+if (!fs.existsSync(SUBSCRIPTIONS_DIR)) {
+  fs.mkdirSync(SUBSCRIPTIONS_DIR, { recursive: true });
+  console.log('📁 Created subscriptions directory');
+}
+
+// Helper functions to load subscriptions from JSON files
+const loadPermanentSubscriptions = () => {
+  try {
+    if (!fs.existsSync(PERMANENT_SUBSCRIPTIONS_FILE)) {
+      return [];
+    }
+    const data = fs.readFileSync(PERMANENT_SUBSCRIPTIONS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error loading permanent subscriptions:', error);
+    return [];
   }
-];
+};
+
+const loadTemporarySubscriptions = () => {
+  try {
+    if (!fs.existsSync(TEMPORARY_SUBSCRIPTIONS_FILE)) {
+      return [];
+    }
+    const data = fs.readFileSync(TEMPORARY_SUBSCRIPTIONS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error loading temporary subscriptions:', error);
+    return [];
+  }
+};
+
+const savePermanentSubscriptions = (subscriptions) => {
+  try {
+    fs.writeFileSync(PERMANENT_SUBSCRIPTIONS_FILE, JSON.stringify(subscriptions, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error saving permanent subscriptions:', error);
+    return false;
+  }
+};
+
+const saveTemporarySubscriptions = (subscriptions) => {
+  try {
+    fs.writeFileSync(TEMPORARY_SUBSCRIPTIONS_FILE, JSON.stringify(subscriptions, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error saving temporary subscriptions:', error);
+    return false;
+  }
+};
+
+// Load whitelists from JSON files (for backward compatibility)
+let permanentWhitelist = loadPermanentSubscriptions().filter(s => s.status === 'active').map(s => s.email);
+let temporaryWhitelist = loadTemporarySubscriptions().filter(s => s.status === 'active').map(s => ({
+  email: s.email,
+  start_date: s.startDate,
+  end_date: s.endDate,
+  planNickname: s.planNickname
+}));
 
 // ==== HELPERS ====
 
@@ -1234,8 +1216,6 @@ app.get('/events/by-date', (req, res) => {
 
 // ==== BLOG POSTS API ====
 
-const fs = require('fs');
-
 // Blog posts directory
 const BLOG_POSTS_DIR = path.join(__dirname, 'blog_posts');
 
@@ -1796,6 +1776,18 @@ app.put('/api/blog/posts/:id', authenticateToken, (req, res) => {
       });
     }
     
+    // If image is being changed, delete the old image
+    if (updateData.image !== undefined && post.image && updateData.image !== post.image) {
+      deleteImageFile(post.image);
+      console.log(`🗑️ Deleted old image during update: ${post.image}`);
+    }
+    
+    // If image is being removed (set to empty string), delete the old image
+    if (updateData.image === '' && post.image) {
+      deleteImageFile(post.image);
+      console.log(`🗑️ Deleted image during removal: ${post.image}`);
+    }
+    
     // Update post with new data
     const updatedPost = {
       ...post,
@@ -1897,6 +1889,1129 @@ app.get('/api/blog/stats', authenticateToken, (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch blog statistics'
+    });
+  }
+});
+
+// ============================================
+// PRICING/PRODUCTS MANAGEMENT ENDPOINTS
+// ============================================
+
+const PRICING_PRODUCTS_DIR = path.join(__dirname, 'pricing_products');
+
+// Ensure pricing products directory exists
+if (!fs.existsSync(PRICING_PRODUCTS_DIR)) {
+  fs.mkdirSync(PRICING_PRODUCTS_DIR, { recursive: true });
+  console.log('📁 Created pricing_products directory');
+}
+
+// Helper functions for pricing products
+const getPricingProductFilePath = (id) => path.join(PRICING_PRODUCTS_DIR, `${id}.json`);
+
+const loadPricingProducts = () => {
+  try {
+    const files = fs.readdirSync(PRICING_PRODUCTS_DIR);
+    const products = [];
+    
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        const filePath = path.join(PRICING_PRODUCTS_DIR, file);
+        const fileContent = fs.readFileSync(filePath, 'utf8');
+        const product = JSON.parse(fileContent);
+        products.push(product);
+      }
+    }
+    
+    return products;
+  } catch (error) {
+    console.error('Error loading pricing products:', error);
+    return [];
+  }
+};
+
+const savePricingProduct = (product) => {
+  try {
+    const filePath = getPricingProductFilePath(product.id);
+    fs.writeFileSync(filePath, JSON.stringify(product, null, 2), 'utf8');
+    console.log(`✅ Saved pricing product: ${product.id} - ${product.name}`);
+    return true;
+  } catch (error) {
+    console.error('Error saving pricing product:', error);
+    return false;
+  }
+};
+
+const deletePricingProduct = (id) => {
+  try {
+    const filePath = getPricingProductFilePath(id);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log(`🗑️ Deleted pricing product: ${id}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error deleting pricing product:', error);
+    return false;
+  }
+};
+
+// Initialize with default products if directory is empty
+const initializePricingProducts = () => {
+  const existingProducts = loadPricingProducts();
+  
+  if (existingProducts.length === 0) {
+    console.log('💰 Initializing with default pricing products...');
+    
+    const defaultProducts = [
+      {
+        id: "prop-trade-planner",
+        name: "Prop Trade Planner",
+        price: 49.99,
+        billingPeriod: "month",
+        description: "Complete planning solution for prop traders",
+        features: ["Trade Planning", "Risk Management", "Daily Goals", "Performance Tracking"],
+        subscriptionLink: "",
+        featured: true,
+        status: "active",
+        order: 1
+      },
+      {
+        id: "traderx",
+        name: "TradeRx",
+        price: 69.99,
+        billingPeriod: "month",
+        description: "Advanced trading analytics and insights",
+        features: ["Real-time Analytics", "Trade Analysis", "Pattern Recognition", "Custom Alerts"],
+        subscriptionLink: "",
+        featured: true,
+        status: "active",
+        order: 2
+      },
+      {
+        id: "journalx",
+        name: "JournalX",
+        price: 39.99,
+        billingPeriod: "month",
+        description: "Professional trading journal",
+        features: ["Trade Journaling", "Performance Reports", "Emotion Tracking", "Notes & Tags"],
+        subscriptionLink: "",
+        featured: true,
+        status: "active",
+        order: 3
+      },
+      {
+        id: "tradecam",
+        name: "TradeCam",
+        price: 24.99,
+        billingPeriod: "month",
+        description: "Screen recording for traders",
+        features: ["HD Screen Recording", "Multi-Monitor Support", "Cloud Storage", "Easy Sharing"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 4
+      },
+      {
+        id: "trade-video-recorder",
+        name: "Trade Video Recorder",
+        price: 29.99,
+        billingPeriod: "month",
+        description: "Record and review your trading sessions",
+        features: ["Session Recording", "Playback Analysis", "Annotations", "Export Options"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 5
+      },
+      {
+        id: "regular-updates",
+        name: "Regular Updates",
+        price: 29.99,
+        billingPeriod: "month",
+        description: "Stay current with latest features",
+        features: ["Monthly Updates", "New Features", "Bug Fixes", "Priority Support"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 6
+      },
+      {
+        id: "white-glove-setup",
+        name: "White-Glove Prop Trading Environment Setup",
+        price: 249.99,
+        billingPeriod: "one-time",
+        description: "Complete professional setup service",
+        features: ["Full Environment Setup", "Custom Configuration", "Training Session", "30-Day Support"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 7
+      },
+      {
+        id: "custom-strategy",
+        name: "Custom Strategy Development (Advisory)",
+        price: 2749.99,
+        billingPeriod: "one-time",
+        description: "Personalized trading strategy development",
+        features: ["Strategy Analysis", "Custom Development", "Backtesting", "Implementation Guide"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 8
+      },
+      {
+        id: "coaching",
+        name: "One-on-One Prop Firm Journey Coaching",
+        price: 349.99,
+        billingPeriod: "one-time",
+        description: "Personal coaching for prop firm success",
+        features: ["1-on-1 Sessions", "Personalized Plan", "Weekly Check-ins", "Email Support"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 9
+      },
+      {
+        id: "prop-trade-planner-trial",
+        name: "Prop Trade Planner Trial",
+        price: 59.99,
+        billingPeriod: "trial",
+        description: "Try Prop Trade Planner risk-free",
+        features: ["Full Access", "14-Day Trial", "No Commitment", "Cancel Anytime"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 10
+      },
+      {
+        id: "traderx-trial",
+        name: "TradeRx - Trial",
+        price: 74.99,
+        billingPeriod: "trial",
+        description: "Try TradeRx risk-free",
+        features: ["Full Access", "14-Day Trial", "No Commitment", "Cancel Anytime"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 11
+      },
+      {
+        id: "journalx-trial",
+        name: "JournalX Trial",
+        price: 49.99,
+        billingPeriod: "trial",
+        description: "Try JournalX risk-free",
+        features: ["Full Access", "14-Day Trial", "No Commitment", "Cancel Anytime"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 12
+      },
+      {
+        id: "tradecam-trial",
+        name: "TradeCam Trial",
+        price: 39,
+        billingPeriod: "trial",
+        description: "Try TradeCam risk-free",
+        features: ["Full Access", "14-Day Trial", "No Commitment", "Cancel Anytime"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 13
+      },
+      {
+        id: "trade-video-recorder-trial",
+        name: "Trade Video Recorder Trial",
+        price: 49,
+        billingPeriod: "trial",
+        description: "Try Trade Video Recorder risk-free",
+        features: ["Full Access", "14-Day Trial", "No Commitment", "Cancel Anytime"],
+        subscriptionLink: "",
+        featured: false,
+        status: "active",
+        order: 14
+      },
+      {
+        id: "core-bundle-trial",
+        name: "Core Bundle Trial — Planner + TradeRx + JournalX",
+        price: 99,
+        billingPeriod: "trial",
+        description: "Try our complete suite risk-free",
+        features: ["All Three Products", "14-Day Trial", "No Commitment", "Cancel Anytime"],
+        subscriptionLink: "",
+        featured: true,
+        status: "active",
+        order: 15
+      }
+    ];
+    
+    defaultProducts.forEach(product => savePricingProduct(product));
+    console.log(`✅ Initialized ${defaultProducts.length} pricing products`);
+  }
+};
+
+// Initialize pricing products on startup
+initializePricingProducts();
+
+/**
+ * Get all pricing products (public)
+ * GET /api/pricing/products
+ */
+app.get('/api/pricing/products', (req, res) => {
+  try {
+    let products = loadPricingProducts();
+    
+    // Filter by status if specified
+    const { status } = req.query;
+    if (status) {
+      products = products.filter(p => p.status === status);
+    }
+    
+    // Sort by order
+    products.sort((a, b) => (a.order || 0) - (b.order || 0));
+    
+    res.json({
+      success: true,
+      products,
+      count: products.length
+    });
+  } catch (error) {
+    console.error('Error fetching pricing products:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch pricing products'
+    });
+  }
+});
+
+/**
+ * Get single pricing product by ID (public)
+ * GET /api/pricing/products/:id
+ */
+app.get('/api/pricing/products/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const products = loadPricingProducts();
+    const product = products.find(p => p.id === id);
+    
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: 'Pricing product not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      product
+    });
+  } catch (error) {
+    console.error('Error fetching pricing product:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch pricing product'
+    });
+  }
+});
+
+/**
+ * Create new pricing product (admin only)
+ * POST /api/pricing/products
+ */
+app.post('/api/pricing/products', authenticateToken, (req, res) => {
+  try {
+    const productData = req.body;
+    
+    // Generate ID from name if not provided
+    if (!productData.id) {
+      productData.id = productData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
+    
+    // Check if product with this ID already exists
+    const existingProducts = loadPricingProducts();
+    if (existingProducts.find(p => p.id === productData.id)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Product with this ID already exists'
+      });
+    }
+    
+    // Set defaults
+    const newProduct = {
+      ...productData,
+      status: productData.status || 'active',
+      featured: productData.featured || false,
+      order: productData.order || existingProducts.length + 1,
+      features: productData.features || [],
+      subscriptionLink: productData.subscriptionLink || ''
+    };
+    
+    const saved = savePricingProduct(newProduct);
+    
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save pricing product'
+      });
+    }
+    
+    res.status(201).json({
+      success: true,
+      product: newProduct,
+      message: 'Pricing product created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating pricing product:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create pricing product'
+    });
+  }
+});
+
+/**
+ * Update pricing product (admin only)
+ * PUT /api/pricing/products/:id
+ */
+app.put('/api/pricing/products/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const products = loadPricingProducts();
+    const product = products.find(p => p.id === id);
+    
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: 'Pricing product not found'
+      });
+    }
+    
+    // Update product with new data
+    const updatedProduct = {
+      ...product,
+      ...updateData,
+      id // Preserve the ID
+    };
+    
+    const saved = savePricingProduct(updatedProduct);
+    
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save updated pricing product'
+      });
+    }
+    
+    res.json({
+      success: true,
+      product: updatedProduct,
+      message: 'Pricing product updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating pricing product:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update pricing product'
+    });
+  }
+});
+
+/**
+ * Delete pricing product (admin only)
+ * DELETE /api/pricing/products/:id
+ */
+app.delete('/api/pricing/products/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const products = loadPricingProducts();
+    const product = products.find(p => p.id === id);
+    
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: 'Pricing product not found'
+      });
+    }
+    
+    const deleted = deletePricingProduct(id);
+    
+    if (!deleted) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to delete pricing product file'
+      });
+    }
+    
+    res.json({
+      success: true,
+      product: product,
+      message: 'Pricing product deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting pricing product:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete pricing product'
+    });
+  }
+});
+
+// ============================================
+// STRIPE SUBSCRIBERS ENDPOINT (ADMIN)
+// ============================================
+
+/**
+ * Get all Stripe subscribers (admin only)
+ * GET /api/admin/stripe/subscribers?page=1&limit=20
+ */
+app.get('/api/admin/stripe/subscribers', authenticateToken, async (req, res) => {
+  try {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: "Stripe is not configured on the server",
+      });
+    }
+
+    // Parse pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const allSubscriptions = [];
+    let hasMore = true;
+    let startingAfter = undefined;
+    let fetchedCount = 0;
+
+    // Fetch all subscriptions with pagination from Stripe
+    while (hasMore) {
+      const params = {
+        limit: 100,
+        status: 'all',
+        expand: ['data.customer', 'data.items.data.price'],
+      };
+
+      if (startingAfter) {
+        params.starting_after = startingAfter;
+      }
+
+      const subscriptions = await stripe.subscriptions.list(params);
+      
+      for (const sub of subscriptions.data) {
+        const customer = sub.customer;
+        const price = sub.items?.data?.[0]?.price;
+        
+        // Fetch product details separately if product is just an ID string
+        let productName = null;
+        if (price?.product) {
+          if (typeof price.product === 'string') {
+            try {
+              const product = await stripe.products.retrieve(price.product);
+              productName = product.name;
+            } catch (error) {
+              console.error('Error fetching product:', error);
+              productName = price.product; // Use product ID as fallback
+            }
+          } else {
+            productName = price.product.name;
+          }
+        }
+
+        allSubscriptions.push({
+          subscription_id: sub.id,
+          customer_id: typeof customer === 'string' ? customer : customer?.id,
+          email: typeof customer === 'string' ? null : customer?.email,
+          customer_name: typeof customer === 'string' ? null : customer?.name,
+          status: sub.status,
+          plan_id: price?.id || null,
+          plan_name: productName,
+          plan_amount: price?.unit_amount ? (price.unit_amount / 100).toFixed(2) : null,
+          currency: price?.currency || 'usd',
+          billing_period: price?.recurring?.interval || 'month',
+          subscription_start_date: sub.start_date 
+            ? new Date(sub.start_date * 1000).toISOString() 
+            : null,
+          current_period_start: sub.current_period_start 
+            ? new Date(sub.current_period_start * 1000).toISOString() 
+            : null,
+          current_period_end: sub.current_period_end 
+            ? new Date(sub.current_period_end * 1000).toISOString() 
+            : null,
+          cancel_at_period_end: sub.cancel_at_period_end,
+          canceled_at: sub.canceled_at 
+            ? new Date(sub.canceled_at * 1000).toISOString() 
+            : null,
+        });
+      }
+
+      hasMore = subscriptions.has_more;
+      if (hasMore) {
+        startingAfter = subscriptions.data[subscriptions.data.length - 1].id;
+      }
+    }
+
+    // Calculate statistics from all data
+    const stats = {
+      total: allSubscriptions.length,
+      active: allSubscriptions.filter(s => s.status === 'active').length,
+      trialing: allSubscriptions.filter(s => s.status === 'trialing').length,
+      past_due: allSubscriptions.filter(s => s.status === 'past_due').length,
+      canceled: allSubscriptions.filter(s => s.status === 'canceled').length,
+      incomplete: allSubscriptions.filter(s => s.status === 'incomplete').length,
+      unpaid: allSubscriptions.filter(s => s.status === 'unpaid').length,
+    };
+
+    // Apply pagination to results
+    const paginatedSubscriptions = allSubscriptions.slice(skip, skip + limit);
+    const totalPages = Math.ceil(allSubscriptions.length / limit);
+
+    res.json({
+      success: true,
+      subscriptions: paginatedSubscriptions,
+      stats,
+      pagination: {
+        page,
+        limit,
+        total: allSubscriptions.length,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    });
+
+  } catch (error) {
+    console.error('Error fetching Stripe subscribers:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch Stripe subscribers',
+      details: error.message,
+    });
+  }
+});
+
+// ============================================
+// SUBSCRIPTION MANAGEMENT ENDPOINTS (ADMIN)
+// ============================================
+
+/**
+ * Get all permanent subscriptions (admin only)
+ * GET /api/admin/subscriptions/permanent?search=query
+ */
+app.get('/api/admin/subscriptions/permanent', authenticateToken, (req, res) => {
+  try {
+    let subscriptions = loadPermanentSubscriptions();
+    
+    // Apply search filter if provided
+    const searchQuery = req.query.search;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      subscriptions = subscriptions.filter(sub => 
+        sub.email.toLowerCase().includes(query) ||
+        sub.planNickname.toLowerCase().includes(query) ||
+        (sub.notes && sub.notes.toLowerCase().includes(query)) ||
+        sub.addedBy.toLowerCase().includes(query)
+      );
+    }
+    
+    res.json({
+      success: true,
+      subscriptions,
+      count: subscriptions.length
+    });
+  } catch (error) {
+    console.error('Error fetching permanent subscriptions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch permanent subscriptions'
+    });
+  }
+});
+
+/**
+ * Get all temporary subscriptions (admin only)
+ * GET /api/admin/subscriptions/temporary?search=query
+ */
+app.get('/api/admin/subscriptions/temporary', authenticateToken, (req, res) => {
+  try {
+    let subscriptions = loadTemporarySubscriptions();
+    
+    // Add expiration status to each subscription
+    const now = new Date();
+    const subscriptionsWithStatus = subscriptions.map(sub => ({
+      ...sub,
+      isExpired: new Date(sub.endDate) < now,
+      isActive: new Date(sub.startDate) <= now && new Date(sub.endDate) >= now
+    }));
+    
+    res.json({
+      success: true,
+      subscriptions: subscriptionsWithStatus,
+      count: subscriptions.length
+    });
+  } catch (error) {
+    console.error('Error fetching temporary subscriptions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch temporary subscriptions'
+    });
+  }
+});
+
+/**
+ * Add permanent subscription (admin only)
+ * POST /api/admin/subscriptions/permanent
+ */
+app.post('/api/admin/subscriptions/permanent', authenticateToken, (req, res) => {
+  try {
+    const { email, planNickname, notes } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required'
+      });
+    }
+    
+    const subscriptions = loadPermanentSubscriptions();
+    
+    // Check if subscription already exists
+    const exists = subscriptions.find(s => s.email.toLowerCase() === email.toLowerCase());
+    if (exists) {
+      return res.status(400).json({
+        success: false,
+        error: 'Permanent subscription already exists for this email'
+      });
+    }
+    
+    // Generate new ID
+    const maxId = subscriptions.reduce((max, s) => {
+      const num = parseInt(s.id.replace('perm_', ''));
+      return num > max ? num : max;
+    }, 0);
+    
+    const newSubscription = {
+      id: `perm_${String(maxId + 1).padStart(3, '0')}`,
+      email: email.toLowerCase(),
+      planNickname: planNickname || 'all',
+      addedDate: new Date().toISOString(),
+      addedBy: req.user.username,
+      notes: notes || '',
+      status: 'active'
+    };
+    
+    subscriptions.push(newSubscription);
+    
+    const saved = savePermanentSubscriptions(subscriptions);
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save permanent subscription'
+      });
+    }
+    
+    // Reload whitelist
+    permanentWhitelist = loadPermanentSubscriptions().filter(s => s.status === 'active').map(s => s.email);
+    
+    console.log(`✅ Added permanent subscription: ${email} by ${req.user.username}`);
+    
+    res.status(201).json({
+      success: true,
+      subscription: newSubscription,
+      message: 'Permanent subscription added successfully'
+    });
+  } catch (error) {
+    console.error('Error adding permanent subscription:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add permanent subscription'
+    });
+  }
+});
+
+/**
+ * Add temporary subscription (admin only)
+ * POST /api/admin/subscriptions/temporary
+ */
+app.post('/api/admin/subscriptions/temporary', authenticateToken, (req, res) => {
+  try {
+    const { email, planNickname, startDate, endDate, notes } = req.body;
+    
+    if (!email || !startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email, startDate, and endDate are required'
+      });
+    }
+    
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid date format'
+      });
+    }
+    
+    if (end <= start) {
+      return res.status(400).json({
+        success: false,
+        error: 'End date must be after start date'
+      });
+    }
+    
+    const subscriptions = loadTemporarySubscriptions();
+    
+    // Check if active subscription already exists
+    const now = new Date();
+    const exists = subscriptions.find(s => 
+      s.email.toLowerCase() === email.toLowerCase() && 
+      s.status === 'active' &&
+      new Date(s.endDate) > now
+    );
+    
+    if (exists) {
+      return res.status(400).json({
+        success: false,
+        error: 'Active temporary subscription already exists for this email'
+      });
+    }
+    
+    // Generate new ID
+    const maxId = subscriptions.reduce((max, s) => {
+      const num = parseInt(s.id.replace('temp_', ''));
+      return num > max ? num : max;
+    }, 0);
+    
+    const newSubscription = {
+      id: `temp_${String(maxId + 1).padStart(3, '0')}`,
+      email: email.toLowerCase(),
+      planNickname: planNickname || 'all',
+      startDate: start.toISOString(),
+      endDate: end.toISOString(),
+      addedDate: new Date().toISOString(),
+      addedBy: req.user.username,
+      notes: notes || '',
+      status: 'active'
+    };
+    
+    subscriptions.push(newSubscription);
+    
+    const saved = saveTemporarySubscriptions(subscriptions);
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save temporary subscription'
+      });
+    }
+    
+    // Reload whitelist
+    temporaryWhitelist = loadTemporarySubscriptions().filter(s => s.status === 'active').map(s => ({
+      email: s.email,
+      start_date: s.startDate,
+      end_date: s.endDate,
+      planNickname: s.planNickname
+    }));
+    
+    console.log(`✅ Added temporary subscription: ${email} by ${req.user.username}`);
+    
+    res.status(201).json({
+      success: true,
+      subscription: newSubscription,
+      message: 'Temporary subscription added successfully'
+    });
+  } catch (error) {
+    console.error('Error adding temporary subscription:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to add temporary subscription'
+    });
+  }
+});
+
+/**
+ * Update permanent subscription (admin only)
+ * PUT /api/admin/subscriptions/permanent/:id
+ */
+app.put('/api/admin/subscriptions/permanent/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const subscriptions = loadPermanentSubscriptions();
+    const index = subscriptions.findIndex(s => s.id === id);
+    
+    if (index === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Permanent subscription not found'
+      });
+    }
+    
+    // Update subscription
+    subscriptions[index] = {
+      ...subscriptions[index],
+      ...updateData,
+      id, // Preserve ID
+      email: updateData.email ? updateData.email.toLowerCase() : subscriptions[index].email
+    };
+    
+    const saved = savePermanentSubscriptions(subscriptions);
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save updated subscription'
+      });
+    }
+    
+    // Reload whitelist
+    permanentWhitelist = loadPermanentSubscriptions().filter(s => s.status === 'active').map(s => s.email);
+    
+    console.log(`✅ Updated permanent subscription: ${id} by ${req.user.username}`);
+    
+    res.json({
+      success: true,
+      subscription: subscriptions[index],
+      message: 'Permanent subscription updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating permanent subscription:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update permanent subscription'
+    });
+  }
+});
+
+/**
+ * Update temporary subscription (admin only)
+ * PUT /api/admin/subscriptions/temporary/:id
+ */
+app.put('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const subscriptions = loadTemporarySubscriptions();
+    const index = subscriptions.findIndex(s => s.id === id);
+    
+    if (index === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Temporary subscription not found'
+      });
+    }
+    
+    // Validate dates if provided
+    if (updateData.startDate && updateData.endDate) {
+      const start = new Date(updateData.startDate);
+      const end = new Date(updateData.endDate);
+      
+      if (end <= start) {
+        return res.status(400).json({
+          success: false,
+          error: 'End date must be after start date'
+        });
+      }
+    }
+    
+    // Update subscription
+    subscriptions[index] = {
+      ...subscriptions[index],
+      ...updateData,
+      id, // Preserve ID
+      email: updateData.email ? updateData.email.toLowerCase() : subscriptions[index].email
+    };
+    
+    const saved = saveTemporarySubscriptions(subscriptions);
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save updated subscription'
+      });
+    }
+    
+    // Reload whitelist
+    temporaryWhitelist = loadTemporarySubscriptions().filter(s => s.status === 'active').map(s => ({
+      email: s.email,
+      start_date: s.startDate,
+      end_date: s.endDate,
+      planNickname: s.planNickname
+    }));
+    
+    console.log(`✅ Updated temporary subscription: ${id} by ${req.user.username}`);
+    
+    res.json({
+      success: true,
+      subscription: subscriptions[index],
+      message: 'Temporary subscription updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating temporary subscription:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update temporary subscription'
+    });
+  }
+});
+
+/**
+ * Delete permanent subscription (admin only)
+ * DELETE /api/admin/subscriptions/permanent/:id
+ */
+app.delete('/api/admin/subscriptions/permanent/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const subscriptions = loadPermanentSubscriptions();
+    const index = subscriptions.findIndex(s => s.id === id);
+    
+    if (index === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Permanent subscription not found'
+      });
+    }
+    
+    const deletedSubscription = subscriptions[index];
+    subscriptions.splice(index, 1);
+    
+    const saved = savePermanentSubscriptions(subscriptions);
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to delete subscription'
+      });
+    }
+    
+    // Reload whitelist
+    permanentWhitelist = loadPermanentSubscriptions().filter(s => s.status === 'active').map(s => s.email);
+    
+    console.log(`🗑️ Deleted permanent subscription: ${id} by ${req.user.username}`);
+    
+    res.json({
+      success: true,
+      subscription: deletedSubscription,
+      message: 'Permanent subscription deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting permanent subscription:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete permanent subscription'
+    });
+  }
+});
+
+/**
+ * Delete temporary subscription (admin only)
+ * DELETE /api/admin/subscriptions/temporary/:id
+ */
+app.delete('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const subscriptions = loadTemporarySubscriptions();
+    const index = subscriptions.findIndex(s => s.id === id);
+    
+    if (index === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Temporary subscription not found'
+      });
+    }
+    
+    const deletedSubscription = subscriptions[index];
+    subscriptions.splice(index, 1);
+    
+    const saved = saveTemporarySubscriptions(subscriptions);
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to delete subscription'
+      });
+    }
+    
+    // Reload whitelist
+    temporaryWhitelist = loadTemporarySubscriptions().filter(s => s.status === 'active').map(s => ({
+      email: s.email,
+      start_date: s.startDate,
+      end_date: s.endDate,
+      planNickname: s.planNickname
+    }));
+    
+    console.log(`🗑️ Deleted temporary subscription: ${id} by ${req.user.username}`);
+    
+    res.json({
+      success: true,
+      subscription: deletedSubscription,
+      message: 'Temporary subscription deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting temporary subscription:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete temporary subscription'
+    });
+  }
+});
+
+/**
+ * Get subscription statistics (admin only)
+ * GET /api/admin/subscriptions/stats
+ */
+app.get('/api/admin/subscriptions/stats', authenticateToken, (req, res) => {
+  try {
+    const permanentSubs = loadPermanentSubscriptions();
+    const temporarySubs = loadTemporarySubscriptions();
+    
+    const now = new Date();
+    
+    const activeTemp = temporarySubs.filter(s => 
+      s.status === 'active' && 
+      new Date(s.startDate) <= now && 
+      new Date(s.endDate) >= now
+    );
+    
+    const expiredTemp = temporarySubs.filter(s => 
+      new Date(s.endDate) < now
+    );
+    
+    const upcomingTemp = temporarySubs.filter(s => 
+      new Date(s.startDate) > now
+    );
+    
+    const stats = {
+      permanent: {
+        total: permanentSubs.length,
+        active: permanentSubs.filter(s => s.status === 'active').length,
+        inactive: permanentSubs.filter(s => s.status === 'inactive').length
+      },
+      temporary: {
+        total: temporarySubs.length,
+        active: activeTemp.length,
+        expired: expiredTemp.length,
+        upcoming: upcomingTemp.length
+      },
+      totalActiveSubscriptions: permanentSubs.filter(s => s.status === 'active').length + activeTemp.length
+    };
+    
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (error) {
+    console.error('Error fetching subscription statistics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch subscription statistics'
     });
   }
 });

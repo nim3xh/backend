@@ -1,0 +1,17 @@
+{
+  "id": "prop-trade-planner",
+  "name": "Prop Trade Planner",
+  "price": 49.99,
+  "billingPeriod": "month",
+  "description": "Complete planning solution for prop traders",
+  "features": [
+    "Trade Planning",
+    "Risk Management",
+    "Daily Goals",
+    "Performance Tracking"
+  ],
+  "subscriptionLink": "https://buy.stripe.com/6oUbITcql3cBfzo5tx9Zm0C?locale=en&__embed_source=buy_btn_1SQNv204dzdw9mwC0pqN6CGh",
+  "featured": true,
+  "status": "active",
+  "order": 1
+}

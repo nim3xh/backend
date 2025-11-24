@@ -1,0 +1,17 @@
+{
+  "id": "custom-strategy",
+  "name": "Custom Strategy Development (Advisory)",
+  "price": 2749.99,
+  "billingPeriod": "one-time",
+  "description": "Personalized trading strategy development",
+  "features": [
+    "Strategy Analysis",
+    "Custom Development",
+    "Backtesting",
+    "Implementation Guide"
+  ],
+  "subscriptionLink": "",
+  "featured": false,
+  "status": "active",
+  "order": 8
+}

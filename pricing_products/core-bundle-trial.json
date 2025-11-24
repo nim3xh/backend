@@ -1,0 +1,17 @@
+{
+  "id": "core-bundle-trial",
+  "name": "Core Bundle Trial — Planner + TradeRx + JournalX",
+  "price": 99,
+  "billingPeriod": "trial",
+  "description": "Try our complete suite risk-free",
+  "features": [
+    "All Three Products",
+    "14-Day Trial",
+    "No Commitment",
+    "Cancel Anytime"
+  ],
+  "subscriptionLink": "",
+  "featured": true,
+  "status": "active",
+  "order": 15
+}

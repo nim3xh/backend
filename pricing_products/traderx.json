@@ -1,0 +1,17 @@
+{
+  "id": "traderx",
+  "name": "TradeRx",
+  "price": 69.99,
+  "billingPeriod": "month",
+  "description": "Advanced trading analytics and insights",
+  "features": [
+    "Real-time Analytics",
+    "Trade Analysis",
+    "Pattern Recognition",
+    "Custom Alerts"
+  ],
+  "subscriptionLink": "https://buy.stripe.com/00w3cngGB4gFevk2hl9Zm0B?locale=en&__embed_source=buy_btn_1SQO1i04dzdw9mwCE1nQtQj3",
+  "featured": true,
+  "status": "active",
+  "order": 2
+}

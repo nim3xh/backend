@@ -1,0 +1,17 @@
+{
+  "id": "trade-video-recorder-trial",
+  "name": "Trade Video Recorder Trial",
+  "price": 49,
+  "billingPeriod": "trial",
+  "description": "Try Trade Video Recorder risk-free",
+  "features": [
+    "Full Access",
+    "14-Day Trial",
+    "No Commitment",
+    "Cancel Anytime"
+  ],
+  "subscriptionLink": "",
+  "featured": false,
+  "status": "active",
+  "order": 14
+}
