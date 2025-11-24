@@ -230,6 +230,12 @@ const temporaryWhitelist = [
     start_date: "2025-11-01T00:00:00.000Z",
     end_date: "2025-12-31T23:59:59.999Z",
     planNickname: "all"
+  },
+  {
+    email: "jakebrescher@gmail.com",
+    start_date: "2025-11-24T00:00:00.000Z",
+    end_date: "2025-12-31T23:59:59.999Z",
+    planNickname: "all"
   }
 ];
 
