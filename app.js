@@ -4,6 +4,8 @@ const cors = require("cors");
 const Stripe = require("stripe");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const multer = require("multer");
+const path = require("path");
 const { sendEmail, sendSubscriptionEmail } = require("./emailService");
 const {
   shouldSendEmail,
@@ -145,6 +147,63 @@ app.post(
 // ==== BASIC MIDDLEWARE ====
 app.use(cors());
 app.use(express.json());
+
+// ==== STATIC FILE SERVING ====
+// Serve uploaded images from public directory
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+console.log('📁 Static files served from /uploads');
+
+// ==== MULTER CONFIGURATION FOR IMAGE UPLOADS ====
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, 'public/uploads/blog-images'));
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename: timestamp-randomstring.extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'blog-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+// File filter to accept only images
+const imageFileFilter = function (req, file, cb) {
+  // Accept image files only
+  if (!file.originalname.match(/\.(jpg|JPG|jpeg|JPEG|png|PNG|gif|GIF|webp|WEBP)$/)) {
+    req.fileValidationError = 'Only image files are allowed (jpg, jpeg, png, gif, webp)';
+    return cb(null, false);
+  }
+  cb(null, true);
+};
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB max file size
+  },
+  fileFilter: imageFileFilter
+});
+
+console.log('📸 Multer configured for blog image uploads (max 5MB)');
+
+// Helper function to delete image file
+function deleteImageFile(imageUrl) {
+  if (!imageUrl || imageUrl === '') return;
+  
+  try {
+    // Extract filename from URL (e.g., /uploads/blog-images/blog-123456.jpg)
+    const filename = imageUrl.split('/').pop();
+    const filePath = path.join(__dirname, 'public/uploads/blog-images', filename);
+    
+    // Check if file exists
+    const fs = require('fs');
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log(`🗑️ Deleted image file: ${filename}`);
+    }
+  } catch (error) {
+    console.error('❌ Error deleting image file:', error.message);
+  }
+}
 
 // ==== STRIPE CLIENT ====
 if (!process.env.STRIPE_SECRET_KEY) {
@@ -1175,7 +1234,6 @@ app.get('/events/by-date', (req, res) => {
 
 // ==== BLOG POSTS API ====
 
-const path = require('path');
 const fs = require('fs');
 
 // Blog posts directory
@@ -1610,6 +1668,52 @@ app.get('/api/blog/posts/:id', (req, res) => {
 });
 
 /**
+ * Upload blog post image (admin only)
+ * POST /api/blog/upload-image
+ * 
+ * Expects: multipart/form-data with 'image' field
+ * Returns: { success: true, imageUrl: "/uploads/blog-images/blog-123456.jpg" }
+ */
+app.post('/api/blog/upload-image', authenticateToken, upload.single('image'), (req, res) => {
+  try {
+    // Check for file validation errors
+    if (req.fileValidationError) {
+      return res.status(400).json({
+        success: false,
+        error: req.fileValidationError
+      });
+    }
+    
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No image file provided'
+      });
+    }
+    
+    // Generate the URL for the uploaded image
+    const imageUrl = `/uploads/blog-images/${req.file.filename}`;
+    
+    console.log(`📸 Blog image uploaded: ${req.file.filename} (${(req.file.size / 1024).toFixed(2)} KB)`);
+    
+    res.json({
+      success: true,
+      imageUrl: imageUrl,
+      filename: req.file.filename,
+      size: req.file.size,
+      message: 'Image uploaded successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error uploading image:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to upload image'
+    });
+  }
+});
+
+/**
  * Create a new blog post (admin only)
  * POST /api/blog/posts
  */
@@ -1738,6 +1842,11 @@ app.delete('/api/blog/posts/:id', authenticateToken, (req, res) => {
         success: false,
         error: 'Blog post not found'
       });
+    }
+    
+    // Delete associated image file if exists
+    if (post.image) {
+      deleteImageFile(post.image);
     }
     
     // Delete the file

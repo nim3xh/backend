@@ -8,6 +8,14 @@ node_modules/
 subscription_emails_log.json
 subscription_emails_sent.csv
 
+# Uploaded images (keep directory structure but ignore files)
+public/uploads/blog-images/*.jpg
+public/uploads/blog-images/*.jpeg
+public/uploads/blog-images/*.png
+public/uploads/blog-images/*.gif
+public/uploads/blog-images/*.webp
+!public/uploads/blog-images/.gitkeep
+
 # Logs
 *.log
 npm-debug.log*
