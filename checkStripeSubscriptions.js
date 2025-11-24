@@ -2,6 +2,7 @@
 const fs = require("fs");
 const path = require("path");
 const Stripe = require("stripe");
+const { markSubscriptionCancelled, getAllSubscriptions } = require("./subscriptionTracker");
 require("dotenv").config();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -124,9 +125,41 @@ const checkStripeSubscriptions = async () => {
 
     fs.writeFileSync(csvFilePath, header + rows, "utf8");
     console.log(`Stripe subscription data saved to ${csvFilePath}`);
+    
+    // Check for cancelled subscriptions and mark them in tracker
+    detectCancelledSubscriptions(subscriptions);
+    
   } catch (error) {
     console.error("Error fetching Stripe subscriptions:", error.message);
   }
 };
+
+/**
+ * Detect cancelled subscriptions by comparing current Stripe data with tracker
+ */
+function detectCancelledSubscriptions(currentSubscriptions) {
+  try {
+    const trackedSubs = getAllSubscriptions();
+    const currentSubIds = new Set(currentSubscriptions.map(s => s.subscription_id));
+    
+    // Find subscriptions that were tracked but are no longer in Stripe (or are cancelled)
+    for (const tracked of trackedSubs) {
+      // Skip if already marked as cancelled
+      if (tracked.is_cancelled) {
+        continue;
+      }
+      
+      // Check if subscription no longer exists in current data
+      const currentSub = currentSubscriptions.find(s => s.subscription_id === tracked.subscription_id);
+      
+      if (!currentSub || currentSub.status === "canceled" || currentSub.status === "cancelled") {
+        console.log(`🔍 Detected cancelled subscription: ${tracked.email} - ${tracked.subscription_id}`);
+        markSubscriptionCancelled(tracked.email, tracked.subscription_id);
+      }
+    }
+  } catch (error) {
+    console.error("❌ Error detecting cancelled subscriptions:", error.message);
+  }
+}
 
 module.exports = checkStripeSubscriptions;

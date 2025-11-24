@@ -76,8 +76,10 @@ function findSubscriptionsByEmail(email) {
 /**
  * Check if email should be sent for this subscription
  * 
- * Simple Rule: If email + subscription_id combo doesn't exist → SEND
- *             If it exists → DON'T SEND
+ * Rules:
+ * 1. If email + subscription_id combo doesn't exist → SEND (new subscription)
+ * 2. If it exists and is_cancelled = true → SEND (reactivation after cancellation)
+ * 3. If it exists and is_cancelled = false → DON'T SEND (already sent)
  * 
  * @param {string} email - Customer email
  * @param {string} subscriptionId - Stripe subscription ID
@@ -88,6 +90,12 @@ function shouldSendEmail(email, subscriptionId) {
   
   if (!existing) {
     console.log(`✅ New subscription for ${email} (${subscriptionId}) - Email will be sent`);
+    return true;
+  }
+  
+  // Check if subscription was cancelled and is now being reactivated
+  if (existing.is_cancelled) {
+    console.log(`✅ Reactivated subscription for ${email} (${subscriptionId}) - Email will be sent again`);
     return true;
   }
   
@@ -103,15 +111,35 @@ function shouldSendEmail(email, subscriptionId) {
  */
 function recordEmailSent(data) {
   const tracker = readSubscriptions();
-  const existing = findSubscription(data.email, data.subscription_id);
-  
-  if (existing) {
-    console.log(`⚠️ Record already exists for ${data.email} - ${data.subscription_id}`);
-    return existing;
-  }
+  const existingIndex = tracker.subscriptions.findIndex(
+    (sub) => sub.email === data.email && sub.subscription_id === data.subscription_id
+  );
   
   const now = new Date().toISOString();
   const duration = calculateDuration(data.current_period_start, data.current_period_end);
+  
+  // If record exists but was cancelled, update it instead of creating new
+  if (existingIndex !== -1 && tracker.subscriptions[existingIndex].is_cancelled) {
+    const existing = tracker.subscriptions[existingIndex];
+    existing.status = data.status;
+    existing.is_cancelled = false;
+    existing.current_period_start = data.current_period_start;
+    existing.current_period_end = data.current_period_end;
+    existing.duration = duration;
+    existing.email_sent_at = now;
+    existing.last_updated = now;
+    delete existing.cancelled_at; // Remove cancelled_at when reactivating
+    writeSubscriptions(tracker);
+    appendToCSV(existing);
+    console.log(`📝 Updated reactivated subscription for ${data.email} - ${data.planNickname}`);
+    return existing;
+  }
+  
+  // If record exists and is NOT cancelled, don't create duplicate
+  if (existingIndex !== -1) {
+    console.log(`⚠️ Record already exists for ${data.email} - ${data.subscription_id}`);
+    return tracker.subscriptions[existingIndex];
+  }
   
   // Create new record matching the format you provided
   const newRecord = {
@@ -128,6 +156,7 @@ function recordEmailSent(data) {
     currency: data.currency,
     planNickname: data.planNickname,
     duration: duration,
+    is_cancelled: false,
     email_sent_at: now,
     created_at: now,
   };
@@ -227,6 +256,33 @@ function getStatistics() {
 }
 
 /**
+ * Mark a subscription as cancelled
+ * 
+ * @param {string} email - Customer email
+ * @param {string} subscriptionId - Stripe subscription ID
+ * @returns {object|null} - Updated record or null if not found
+ */
+function markSubscriptionCancelled(email, subscriptionId) {
+  const tracker = readSubscriptions();
+  const existing = tracker.subscriptions.find(
+    (sub) => sub.email === email && sub.subscription_id === subscriptionId
+  );
+  
+  if (!existing) {
+    console.log(`⚠️ Subscription not found for cancellation: ${email} - ${subscriptionId}`);
+    return null;
+  }
+  
+  existing.is_cancelled = true;
+  existing.cancelled_at = new Date().toISOString();
+  // Don't change status here - keep it as is for tracking
+  writeSubscriptions(tracker);
+  
+  console.log(`🚫 Marked subscription as cancelled: ${email} - ${subscriptionId}`);
+  return existing;
+}
+
+/**
  * Clear all subscription records (use with caution!)
  */
 function clearAllRecords() {
@@ -240,6 +296,7 @@ function clearAllRecords() {
 module.exports = {
   shouldSendEmail,
   recordEmailSent,
+  markSubscriptionCancelled,
   findSubscription,
   findSubscriptionsByEmail,
   getAllSubscriptions,

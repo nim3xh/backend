@@ -110,7 +110,7 @@ async function processSubscription(row) {
       subscription_start_date: row["Subscription Start Date"]?.trim() || null,
       current_period_start: row["Current Period Start"]?.trim() || null,
       current_period_end: row["Current Period End"]?.trim() || null,
-      plan_id: productId || "N/A",
+      plan_id: row["Plan ID"]?.trim() || "N/A",
       plan_amount: row["Plan Amount (USD)"]?.trim() || "0.00",
       currency: row.Currency?.trim() || "usd",
       planNickname: planNickname,
