@@ -48,13 +48,13 @@ function readCSV() {
  * Process a subscription row and send email if needed
  */
 async function processSubscription(row) {
-  try {
-    const email = row.Email?.trim();
-    const subscriptionId = row["Subscription ID"]?.trim();
-    const status = row.Status?.trim();
-    const planNickname = row["Plan Nickname"]?.trim() || "Your Subscription";
-    const customerName = email ? email.split("@")[0] : "Valued Customer";
+  const email = row.Email?.trim();
+  const subscriptionId = row["Subscription ID"]?.trim();
+  const status = row.Status?.trim();
+  const planNickname = row["Plan Nickname"]?.trim() || "Your Subscription";
+  const customerName = email ? email.split("@")[0] : "Valued Customer";
 
+  try {
     // Skip if no email or subscription ID
     if (!email || !subscriptionId) {
       return;
@@ -89,17 +89,6 @@ async function processSubscription(row) {
     console.log(`   Status: ${status}`);
     console.log(`   Subscription ID: ${subscriptionId}`);
 
-    // Get download link based on Plan Nickname
-    const downloadLink = getDownloadLinkByPlanNickname(planNickname);
-
-    // Send email
-    await sendSubscriptionEmail({
-      to: email,
-      productName: planNickname,
-      downloadLink: downloadLink,
-      customerName: customerName,
-    });
-
     // Prepare subscription data for recording
     const subscriptionData = {
       source: "csv_watcher",
@@ -116,15 +105,33 @@ async function processSubscription(row) {
       planNickname: planNickname,
     };
 
-    // Record email sent
-    recordEmailSent(subscriptionData);
-
-    // Add to processed set
+    // Mark as processed in session BEFORE sending to prevent duplicates
     lastProcessedData.add(subscriptionKey);
+
+    // Get download link based on Plan Nickname
+    const downloadLink = getDownloadLinkByPlanNickname(planNickname);
+
+    // Send email
+    await sendSubscriptionEmail({
+      to: email,
+      productName: planNickname,
+      downloadLink: downloadLink,
+      customerName: customerName,
+    });
+
+    // Record email sent to persistent storage
+    recordEmailSent(subscriptionData);
 
     console.log(`✅ Email sent and recorded for ${email}\n`);
   } catch (error) {
-    console.error(`❌ Error processing subscription:`, error.message);
+    console.error(`❌ Error processing subscription for ${email}:`, error.message);
+    
+    // Even if email fails, add to session processed list to prevent retry loops
+    // The subscription is in the CSV, so they can always contact support
+    const subscriptionKey = `${email}:${subscriptionId}`;
+    lastProcessedData.add(subscriptionKey);
+    
+    console.warn(`⚠️ Marked ${subscriptionKey} as processed to prevent retry loops`);
   }
 }
 
@@ -146,9 +153,11 @@ async function checkForNewSubscriptions() {
       return;
     }
 
-    // Process each subscription
+    // Process each subscription sequentially with built-in rate limiting
+    // The emailService already has rate limiting, so this will be throttled automatically
     for (const subscription of subscriptions) {
       await processSubscription(subscription);
+      // Note: Rate limiting is handled in emailService.js
     }
   } catch (error) {
     console.error("❌ Error checking CSV file:", error.message);

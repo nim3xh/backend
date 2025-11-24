@@ -5,24 +5,65 @@ if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
   console.warn("⚠ GMAIL_USER or GMAIL_APP_PASSWORD is not set in .env");
 }
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+// Singleton transporter with connection pooling to prevent rate limiting
+let transporter = null;
+let lastEmailTime = 0;
+const MIN_EMAIL_INTERVAL = parseInt(process.env.EMAIL_RATE_LIMIT) || 2000; // Configurable rate limit
+
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,
+      },
+      pool: true, // Use connection pool
+      maxConnections: 1, // Limit concurrent connections
+      maxMessages: 10, // Max messages per connection
+      rateDelta: 2000, // Min time between messages (2 seconds)
+      rateLimit: 1, // Max messages per rateDelta period
+    });
+
+    // Handle transporter errors
+    transporter.on('error', (err) => {
+      console.error('❌ Transporter error:', err.message);
+    });
+  }
+  return transporter;
+}
+
+// Rate limiting helper
+async function waitForRateLimit() {
+  const now = Date.now();
+  const timeSinceLastEmail = now - lastEmailTime;
+  
+  if (timeSinceLastEmail < MIN_EMAIL_INTERVAL) {
+    const waitTime = MIN_EMAIL_INTERVAL - timeSinceLastEmail;
+    console.log(`⏳ Rate limiting: waiting ${waitTime}ms before sending email...`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+  
+  lastEmailTime = Date.now();
+}
 
 /**
- * Send an email using Gmail.
+ * Send an email using Gmail with retry logic and rate limiting.
  *
  * @param {string} to - Recipient email address
  * @param {string} subject - Email subject
  * @param {string} text - Plain text body
  * @param {string} [html] - Optional HTML body
+ * @param {number} [retryCount] - Internal retry counter
  */
-async function sendEmail({ to, subject, text, html }) {
+async function sendEmail({ to, subject, text, html }, retryCount = 0) {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAYS = [5000, 15000, 30000]; // 5s, 15s, 30s
+  
   try {
+    // Apply rate limiting
+    await waitForRateLimit();
+    
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to,
@@ -32,10 +73,30 @@ async function sendEmail({ to, subject, text, html }) {
       ...(html ? { html } : {}),
     };
 
-    const info = await transporter.sendMail(mailOptions);
+    const info = await getTransporter().sendMail(mailOptions);
     console.log("📧 Email sent:", info.messageId);
     return info;
   } catch (error) {
+    const isRateLimitError = 
+      error.message.includes('Too many login attempts') ||
+      error.message.includes('454') ||
+      error.message.includes('rate limit');
+    
+    // Retry on rate limit errors
+    if (isRateLimitError && retryCount < MAX_RETRIES) {
+      const delay = RETRY_DELAYS[retryCount];
+      console.warn(`⚠ Rate limit hit. Retrying in ${delay/1000}s... (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
+      
+      // Close existing transporter to reset connection
+      if (transporter) {
+        transporter.close();
+        transporter = null;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return sendEmail({ to, subject, text, html }, retryCount + 1);
+    }
+    
     console.error("❌ Error sending email:", error.message);
     throw error;
   }
@@ -209,8 +270,21 @@ async function sendSubscriptionEmail({ to, productName, downloadLink, customerNa
   }
 }
 
+/**
+ * Close and reset the transporter connection
+ * Use this to reset the connection pool if rate limiting persists
+ */
+function closeTransporter() {
+  if (transporter) {
+    transporter.close();
+    transporter = null;
+    console.log('🔌 Email transporter connection closed and reset');
+  }
+}
+
 module.exports = {
   sendEmail,
   sendSubscriptionEmail,
   generateSubscriptionEmailTemplate,
+  closeTransporter,
 };

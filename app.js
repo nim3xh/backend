@@ -2,6 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const Stripe = require("stripe");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 const { sendEmail, sendSubscriptionEmail } = require("./emailService");
 const {
   shouldSendEmail,
@@ -1170,6 +1172,625 @@ app.get('/events/by-date', (req, res) => {
   }
 });
 
+
+// ==== BLOG POSTS API ====
+
+const path = require('path');
+const fs = require('fs');
+
+// Blog posts directory
+const BLOG_POSTS_DIR = path.join(__dirname, 'blog_posts');
+
+// Ensure blog posts directory exists
+if (!fs.existsSync(BLOG_POSTS_DIR)) {
+  fs.mkdirSync(BLOG_POSTS_DIR, { recursive: true });
+  console.log('📁 Created blog_posts directory');
+}
+
+// Helper functions for file operations
+const getBlogPostFilePath = (id) => path.join(BLOG_POSTS_DIR, `${id}.json`);
+
+const loadBlogPosts = () => {
+  try {
+    const files = fs.readdirSync(BLOG_POSTS_DIR);
+    const posts = [];
+    
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        const filePath = path.join(BLOG_POSTS_DIR, file);
+        const fileContent = fs.readFileSync(filePath, 'utf8');
+        const post = JSON.parse(fileContent);
+        posts.push(post);
+      }
+    }
+    
+    return posts;
+  } catch (error) {
+    console.error('Error loading blog posts:', error);
+    return [];
+  }
+};
+
+const saveBlogPost = (post) => {
+  try {
+    const filePath = getBlogPostFilePath(post.id);
+    fs.writeFileSync(filePath, JSON.stringify(post, null, 2), 'utf8');
+    console.log(`✅ Saved blog post: ${post.id} - ${post.title}`);
+    return true;
+  } catch (error) {
+    console.error('Error saving blog post:', error);
+    return false;
+  }
+};
+
+const deleteBlogPost = (id) => {
+  try {
+    const filePath = getBlogPostFilePath(id);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log(`🗑️ Deleted blog post: ${id}`);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error deleting blog post:', error);
+    return false;
+  }
+};
+
+// Initialize with sample posts if directory is empty
+const initializeSamplePosts = () => {
+  const existingPosts = loadBlogPosts();
+  
+  if (existingPosts.length === 0) {
+    console.log('📝 Initializing with sample blog posts...');
+    
+    const samplePosts = [
+      {
+        id: "1",
+        title: "5 Essential Rules Every Prop Trader Must Follow",
+        excerpt: "Understanding and following prop firm rules is critical for success...",
+        content: "Prop trading comes with specific rules and guidelines that traders must follow to maintain their funded accounts. Here are five essential rules every prop trader must follow...",
+        category: "Trading Tips",
+        status: "published",
+        date: "2025-11-20",
+        author: "Admin",
+        views: 1247,
+        readTime: "5 min read",
+        image: ""
+      },
+      {
+        id: "2",
+        title: "How to Build a Consistent Trading Routine",
+        excerpt: "Consistency is key in prop trading. Discover how to create...",
+        content: "Building a consistent trading routine is one of the most important factors in becoming a successful prop trader. This article explores the key elements of a solid trading routine...",
+        category: "Strategy",
+        status: "published",
+        date: "2025-11-18",
+        author: "Admin",
+        views: 892,
+        readTime: "7 min read",
+        image: ""
+      },
+      {
+        id: "3",
+        title: "Risk Management Strategies for Funded Accounts",
+        excerpt: "Protecting your funded account requires proper risk management...",
+        content: "Risk management is the cornerstone of successful prop trading. In this comprehensive guide, we'll cover the essential risk management strategies you need to protect your funded account...",
+        category: "Risk Management",
+        status: "draft",
+        date: "2025-11-15",
+        author: "Admin",
+        views: 0,
+        readTime: "10 min read",
+        image: ""
+      }
+    ];
+    
+    samplePosts.forEach(post => saveBlogPost(post));
+    console.log('✅ Sample posts initialized');
+  }
+};
+
+// Initialize sample posts on startup
+initializeSamplePosts();
+
+// ==== JWT AUTHENTICATION MIDDLEWARE ====
+
+/**
+ * Middleware to verify JWT token
+ */
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      error: 'Access token required'
+    });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({
+        success: false,
+        error: 'Invalid or expired token'
+      });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// ==== ADMIN AUTHENTICATION API ====
+
+/**
+ * Admin signup endpoint
+ * POST /api/admin/signup
+ */
+app.post('/api/admin/signup', async (req, res) => {
+  try {
+    const { username, password, email } = req.body;
+
+    // Validate input
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username and password are required'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 6 characters long'
+      });
+    }
+
+    // Load existing users
+    const fs = require('fs');
+    const path = require('path');
+    const usersFile = path.join(__dirname, 'users.json');
+    
+    let users = [];
+    if (fs.existsSync(usersFile)) {
+      const data = fs.readFileSync(usersFile, 'utf8');
+      users = JSON.parse(data);
+    }
+
+    // Check if username already exists
+    if (users.find(u => u.username === username)) {
+      return res.status(409).json({
+        success: false,
+        error: 'Username already exists'
+      });
+    }
+
+    // Hash password
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Create new user
+    const newUser = {
+      id: Date.now().toString(),
+      username,
+      email: email || '',
+      passwordHash,
+      role: 'admin',
+      createdAt: new Date().toISOString()
+    };
+
+    users.push(newUser);
+
+    // Save to file
+    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+
+    // Generate JWT token
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('⚠️ JWT_SECRET not set in .env');
+      return res.status(500).json({
+        success: false,
+        error: 'Server configuration error'
+      });
+    }
+
+    const token = jwt.sign(
+      { username, role: 'admin' },
+      jwtSecret,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    console.log(`✅ Admin signup successful: ${username}`);
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        username,
+        email,
+        role: 'admin'
+      },
+      message: 'Account created successfully'
+    });
+  } catch (error) {
+    console.error('Error in admin signup:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error during signup'
+    });
+  }
+});
+
+/**
+ * Admin login endpoint
+ * POST /api/admin/login
+ */
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // Validate input
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Username and password are required'
+      });
+    }
+
+    // Load users from file
+    const fs = require('fs');
+    const path = require('path');
+    const usersFile = path.join(__dirname, 'users.json');
+    
+    let users = [];
+    if (fs.existsSync(usersFile)) {
+      const data = fs.readFileSync(usersFile, 'utf8');
+      users = JSON.parse(data);
+    }
+
+    // Find user in file
+    let user = users.find(u => u.username === username);
+    let passwordHash = user ? user.passwordHash : null;
+
+    // Fall back to env variables if user not found in file
+    if (!user) {
+      const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+      if (username === adminUsername) {
+        passwordHash = process.env.ADMIN_PASSWORD_HASH;
+        user = { username, role: 'admin' };
+      }
+    }
+
+    // Check if user exists
+    if (!user || !passwordHash) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Verify password
+    const passwordMatch = await bcrypt.compare(password, passwordHash);
+    if (!passwordMatch) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials'
+      });
+    }
+
+    // Generate JWT token
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('⚠️ JWT_SECRET not set in .env');
+      return res.status(500).json({
+        success: false,
+        error: 'Server configuration error'
+      });
+    }
+
+    const token = jwt.sign(
+      { username, role: 'admin' },
+      jwtSecret,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    console.log(`✅ Admin login successful: ${username}`);
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        username,
+        role: 'admin'
+      },
+      message: 'Login successful'
+    });
+  } catch (error) {
+    console.error('Error in admin login:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Login failed'
+    });
+  }
+});
+
+/**
+ * Verify token endpoint
+ * GET /api/admin/verify
+ */
+app.get('/api/admin/verify', authenticateToken, (req, res) => {
+  res.json({
+    success: true,
+    user: req.user,
+    message: 'Token is valid'
+  });
+});
+
+/**
+ * Admin logout (client-side token removal)
+ * POST /api/admin/logout
+ */
+app.post('/api/admin/logout', authenticateToken, (req, res) => {
+  console.log(`🔓 Admin logout: ${req.user.username}`);
+  res.json({
+    success: true,
+    message: 'Logout successful'
+  });
+});
+
+
+/**
+ * Get all blog posts (public endpoint)
+ * GET /api/blog/posts
+ * Query params: status (optional) - filter by 'published' or 'draft'
+ */
+app.get('/api/blog/posts', (req, res) => {
+  try {
+    const { status } = req.query;
+    
+    let posts = loadBlogPosts();
+    
+    // Filter by status if provided
+    if (status) {
+      posts = posts.filter(post => post.status === status);
+    }
+    
+    // Sort by date (newest first)
+    posts.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    res.json({
+      success: true,
+      posts: posts,
+      total: posts.length
+    });
+  } catch (error) {
+    console.error('Error fetching blog posts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch blog posts'
+    });
+  }
+});
+
+/**
+ * Get a single blog post by ID
+ * GET /api/blog/posts/:id
+ */
+app.get('/api/blog/posts/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const posts = loadBlogPosts();
+    const post = posts.find(p => p.id === id);
+    
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        error: 'Blog post not found'
+      });
+    }
+    
+    // Increment views for published posts
+    if (post.status === 'published') {
+      post.views += 1;
+      saveBlogPost(post);
+    }
+    
+    res.json({
+      success: true,
+      post
+    });
+  } catch (error) {
+    console.error('Error fetching blog post:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch blog post'
+    });
+  }
+});
+
+/**
+ * Create a new blog post (admin only)
+ * POST /api/blog/posts
+ */
+app.post('/api/blog/posts', authenticateToken, (req, res) => {
+  try {
+    const {
+      title,
+      excerpt,
+      content,
+      category,
+      status,
+      author,
+      readTime,
+      image
+    } = req.body;
+    
+    // Validate required fields
+    if (!title || !excerpt || !content) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: title, excerpt, content'
+      });
+    }
+    
+    // Create new post
+    const newPost = {
+      id: Date.now().toString(),
+      title,
+      excerpt,
+      content,
+      category: category || 'Trading Tips',
+      status: status || 'draft',
+      date: new Date().toISOString().split('T')[0],
+      author: author || 'Admin',
+      views: 0,
+      readTime: readTime || '5 min read',
+      image: image || ''
+    };
+    
+    // Save to file
+    const saved = saveBlogPost(newPost);
+    
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save blog post'
+      });
+    }
+    
+    res.status(201).json({
+      success: true,
+      post: newPost,
+      message: 'Blog post created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating blog post:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create blog post'
+    });
+  }
+});
+
+/**
+ * Update a blog post (admin only)
+ * PUT /api/blog/posts/:id
+ */
+app.put('/api/blog/posts/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    
+    const posts = loadBlogPosts();
+    const post = posts.find(p => p.id === id);
+    
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        error: 'Blog post not found'
+      });
+    }
+    
+    // Update post with new data
+    const updatedPost = {
+      ...post,
+      ...updateData,
+      id // Preserve the ID
+    };
+    
+    // Save updated post to file
+    const saved = saveBlogPost(updatedPost);
+    
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save updated blog post'
+      });
+    }
+    
+    res.json({
+      success: true,
+      post: updatedPost,
+      message: 'Blog post updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating blog post:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update blog post'
+    });
+  }
+});
+
+/**
+ * Delete a blog post (admin only)
+ * DELETE /api/blog/posts/:id
+ */
+app.delete('/api/blog/posts/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    const posts = loadBlogPosts();
+    const post = posts.find(p => p.id === id);
+    
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        error: 'Blog post not found'
+      });
+    }
+    
+    // Delete the file
+    const deleted = deleteBlogPost(id);
+    
+    if (!deleted) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to delete blog post file'
+      });
+    }
+    
+    res.json({
+      success: true,
+      post: post,
+      message: 'Blog post deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting blog post:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete blog post'
+    });
+  }
+});
+
+/**
+ * Get blog statistics (admin only)
+ * GET /api/blog/stats
+ */
+app.get('/api/blog/stats', authenticateToken, (req, res) => {
+  try {
+    const posts = loadBlogPosts();
+    
+    const stats = {
+      total: posts.length,
+      published: posts.filter(p => p.status === 'published').length,
+      drafts: posts.filter(p => p.status === 'draft').length,
+      totalViews: posts.reduce((sum, p) => sum + p.views, 0)
+    };
+    
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (error) {
+    console.error('Error fetching blog stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch blog statistics'
+    });
+  }
+});
 
 // ==== EXPORT APP ====
 module.exports = app;
