@@ -154,10 +154,6 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 console.log('📁 Static files served from /uploads');
 
-// Serve frontend React app static files from dist folder
-app.use(express.static(path.join(__dirname, '../frontend/dist')));
-console.log('📁 Frontend app served from /frontend/dist');
-
 // ==== MULTER CONFIGURATION FOR IMAGE UPLOADS ====
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -3017,18 +3013,6 @@ app.get('/api/admin/subscriptions/stats', authenticateToken, (req, res) => {
       success: false,
       error: 'Failed to fetch subscription statistics'
     });
-  }
-});
-
-// ==== FRONTEND SPA CATCH-ALL ROUTE ====
-// This must be the LAST route - serves index.html for all non-API routes
-// Enables React Router to handle client-side routing
-app.use((req, res, next) => {
-  // Only serve index.html for GET requests that don't start with /api or /uploads
-  if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
-    res.sendFile(path.join(__dirname, './dist/index.html'));
-  } else {
-    next();
   }
 });
 
