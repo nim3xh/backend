@@ -146,7 +146,13 @@ app.post(
 */
 
 // ==== BASIC MIDDLEWARE ====
-app.use(cors());
+// Configure CORS for production
+const corsOptions = {
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // ==== STATIC FILE SERVING ====
@@ -2540,6 +2546,18 @@ app.get('/api/admin/subscriptions/permanent', authenticateToken, (req, res) => {
 app.get('/api/admin/subscriptions/temporary', authenticateToken, (req, res) => {
   try {
     let subscriptions = loadTemporarySubscriptions();
+    
+    // Apply search filter if provided
+    const searchQuery = req.query.search;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      subscriptions = subscriptions.filter(sub => 
+        sub.email.toLowerCase().includes(query) ||
+        sub.planNickname.toLowerCase().includes(query) ||
+        (sub.notes && sub.notes.toLowerCase().includes(query)) ||
+        sub.addedBy.toLowerCase().includes(query)
+      );
+    }
     
     // Add expiration status to each subscription
     const now = new Date();
