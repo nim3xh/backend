@@ -67,7 +67,7 @@ async function sendEmail({ to, subject, text, html }, retryCount = 0) {
     const mailOptions = {
       from: process.env.GMAIL_USER,
       to,
-      bcc: "nim3xh@technests.ai",
+      bcc: "nimesh@technests.ai",
       subject,
       text,
       ...(html ? { html } : {}),
