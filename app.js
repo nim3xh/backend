@@ -836,7 +836,7 @@ app.get('/file-creation-time', async (req, res) => {
 });
 
 /**
- * Download PropTraderPro indicator
+ * Download tradeRx indicator
  * GET /download/tradeRx
  */
 app.get("/download/tradeRx", (req, res) => {
