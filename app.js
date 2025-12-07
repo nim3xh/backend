@@ -837,13 +837,13 @@ app.get('/file-creation-time', async (req, res) => {
 
 /**
  * Download PropTraderPro indicator
- * GET /download/proptraderpro
+ * GET /download/tradeRx
  */
-app.get("/download/proptraderpro", (req, res) => {
+app.get("/download/tradeRx", (req, res) => {
   const path = require('path');
   const fs = require('fs');
   
-  const filePath = path.resolve(__dirname, "dll", "Download.zip");
+  const filePath = path.resolve(__dirname, "dll", "indicator.zip");
   if (!fs.existsSync(filePath)) {
     return res.status(404).send("File not found");
   }
