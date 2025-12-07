@@ -843,7 +843,7 @@ app.get("/download/proptraderpro", (req, res) => {
   const path = require('path');
   const fs = require('fs');
   
-  const filePath = path.resolve(__dirname, "dll", "indicator.zip");
+  const filePath = path.resolve(__dirname, "dll", "Download.zip");
   if (!fs.existsSync(filePath)) {
     return res.status(404).send("File not found");
   }
