@@ -839,7 +839,7 @@ app.get('/file-creation-time', async (req, res) => {
  * Download tradeRx indicator
  * GET /download/tradeRx
  */
-app.get("/download/tradeRx", (req, res) => {
+app.get("/download/traderx", (req, res) => {
   const path = require('path');
   const fs = require('fs');
   
