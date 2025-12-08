@@ -7,6 +7,8 @@ const bcrypt = require("bcryptjs");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const session = require("express-session");
+const passport = require("./config/passport");
 const { sendEmail, sendSubscriptionEmail } = require("./emailService");
 const {
   shouldSendEmail,
@@ -154,6 +156,21 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// ==== SESSION & PASSPORT MIDDLEWARE ====
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-session-secret-key-change-this',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+  }
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+console.log('🔐 Passport and session middleware initialized');
 
 // ==== STATIC FILE SERVING ====
 // Serve uploaded images from public directory
@@ -1466,6 +1483,41 @@ app.post('/api/admin/signup', async (req, res) => {
   }
 });
 
+// ==== GOOGLE OAUTH ROUTES ====
+const authRoutes = require('./routes/auth');
+app.use('/auth', authRoutes);
+console.log('🔑 Google OAuth routes initialized at /auth');
+
+// ==== PROFILE PHOTO PROXY ====
+// Proxy Google profile photos to bypass referrer restrictions
+app.get('/api/proxy-image', async (req, res) => {
+  try {
+    const imageUrl = req.query.url;
+    
+    if (!imageUrl || !imageUrl.includes('googleusercontent.com')) {
+      return res.status(400).json({ error: 'Invalid image URL' });
+    }
+
+    const https = require('https');
+    const http = require('http');
+    const protocol = imageUrl.startsWith('https') ? https : http;
+
+    protocol.get(imageUrl, (proxyRes) => {
+      // Set cache headers
+      res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+      res.set('Content-Type', proxyRes.headers['content-type']);
+      
+      proxyRes.pipe(res);
+    }).on('error', (err) => {
+      console.error('Image proxy error:', err);
+      res.status(500).json({ error: 'Failed to fetch image' });
+    });
+  } catch (error) {
+    console.error('Image proxy error:', error);
+    res.status(500).json({ error: 'Failed to fetch image' });
+  }
+});
+
 /**
  * Admin login endpoint
  * POST /api/admin/login
@@ -1581,6 +1633,52 @@ app.post('/api/admin/logout', authenticateToken, (req, res) => {
     success: true,
     message: 'Logout successful'
   });
+});
+
+/**
+ * Get all users (admin only)
+ * GET /api/admin/users
+ */
+app.get('/api/admin/users', authenticateToken, (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied. Admin only.'
+      });
+    }
+
+    // Load users from file
+    const usersFile = path.join(__dirname, 'users.json');
+    let users = [];
+    
+    if (fs.existsSync(usersFile)) {
+      const data = fs.readFileSync(usersFile, 'utf8');
+      users = JSON.parse(data);
+    }
+
+    // Remove sensitive data (passwords)
+    const sanitizedUsers = users.map(user => {
+      const { passwordHash, ...userWithoutPassword } = user;
+      return userWithoutPassword;
+    });
+
+    // Sort by creation date (newest first)
+    sanitizedUsers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json({
+      success: true,
+      users: sanitizedUsers,
+      total: sanitizedUsers.length
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch users'
+    });
+  }
 });
 
 

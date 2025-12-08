@@ -5,6 +5,21 @@
     "email": "nim3xh@gmail.com",
     "passwordHash": "$2a$12$yRtDosd8TL18NDG/r5fxgu5eeetw5fy5EZrNzgyGTyHIZnvCDGrhC",
     "role": "admin",
-    "createdAt": "2025-11-24T07:55:34.853Z"
+    "createdAt": "2025-11-24T07:55:34.853Z",
+    "googleId": "109800994300650300669",
+    "displayName": "Nimesh Jayaweera",
+    "profilePhoto": "https://lh3.googleusercontent.com/a/ACg8ocJJdfrI3ktT0g8RKECHtfVYFlAup_0UVzJcee5H3MwACE5SIlI9=s96-c",
+    "lastLogin": "2025-12-08T11:38:50.387Z"
+  },
+  {
+    "id": "1765191736837",
+    "googleId": "103661564767578694204",
+    "email": "nimeshrangana77@gmail.com",
+    "displayName": "Nimesh Jayaweera",
+    "profilePhoto": "https://lh3.googleusercontent.com/a/ACg8ocJi5jRQ6UdhdgY6QW6mQtWEPSDWfxQk3_cr677AqBNivHBmdnEG0A=s96-c",
+    "role": "user",
+    "authMethod": "google",
+    "createdAt": "2025-12-08T11:02:16.837Z",
+    "lastLogin": "2025-12-08T11:02:16.837Z"
   }
 ]

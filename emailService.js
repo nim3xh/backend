@@ -224,9 +224,6 @@ function generateSubscriptionEmailTemplate(productName, downloadLink, customerNa
           <p>If you have any questions or need help getting started, please don't hesitate to reach out to our support team. We're here to help!</p>
           
           <p>Thank you for choosing us. We look forward to serving you!</p>
-          
-          <p>Best regards,<br>
-          <strong>The Team</strong></p>
         </div>
         <div class="footer">
           <p>This is an automated email. Please do not reply to this message.</p>
@@ -253,7 +250,7 @@ async function sendSubscriptionEmail({ to, productName, downloadLink, customerNa
     
     const subject = `Thank You for Your Subscription to ${productName}!`;
     const html = generateSubscriptionEmailTemplate(productName, downloadLink, customerName);
-    const text = `Dear ${customerName},\n\nThank you for subscribing to ${productName}!\n\nYour subscription has been successfully activated. You can download your product here: ${downloadLink}\n\nThank you for choosing us!\n\nBest regards,\nThe Team`;
+    const text = `Dear ${customerName},\n\nThank you for subscribing to ${productName}!\n\nYour subscription has been successfully activated. You can download your product here: ${downloadLink}\n\nThank you for choosing us!`;
     
     const info = await sendEmail({
       to: recipientEmail,
