@@ -177,6 +177,15 @@ console.log('🔐 Passport and session middleware initialized');
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 console.log('📁 Static files served from /uploads');
 
+// Redirect old WordPress image URLs to a placeholder or 404
+app.get('/wp-content/uploads/*', (req, res) => {
+  console.log(`⚠️ Old WordPress URL accessed: ${req.path}`);
+  // Option 1: Redirect to a default image
+  res.redirect('/placeholder.svg');
+  // Option 2: Return 404
+  // res.status(404).send('Image not found - This site no longer uses WordPress');
+});
+
 // ==== MULTER CONFIGURATION FOR IMAGE UPLOADS ====
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
