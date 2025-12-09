@@ -1997,6 +1997,112 @@ app.get('/api/blog/stats', authenticateToken, (req, res) => {
   }
 });
 
+/**
+ * Generate XML sitemap for SEO
+ * GET /sitemap.xml
+ */
+app.get('/sitemap.xml', (req, res) => {
+  try {
+    const posts = loadBlogPosts().filter(p => p.status === 'published');
+    const baseUrl = process.env.FRONTEND_URL || 'https://technests.ai';
+    
+    // Start XML
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+    
+    // Add homepage
+    xml += '  <url>\n';
+    xml += `    <loc>${baseUrl}/</loc>\n`;
+    xml += `    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>\n`;
+    xml += '    <changefreq>daily</changefreq>\n';
+    xml += '    <priority>1.0</priority>\n';
+    xml += '  </url>\n';
+    
+    // Add blog listing page
+    xml += '  <url>\n';
+    xml += `    <loc>${baseUrl}/blog</loc>\n`;
+    xml += `    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>\n`;
+    xml += '    <changefreq>daily</changefreq>\n';
+    xml += '    <priority>0.9</priority>\n';
+    xml += '  </url>\n';
+    
+    // Add all published blog posts
+    posts.forEach(post => {
+      xml += '  <url>\n';
+      xml += `    <loc>${baseUrl}/blog/${post.id}</loc>\n`;
+      xml += `    <lastmod>${post.updatedAt || post.date}</lastmod>\n`;
+      xml += '    <changefreq>weekly</changefreq>\n';
+      xml += '    <priority>0.8</priority>\n';
+      xml += '  </url>\n';
+    });
+    
+    // Add static pages
+    const staticPages = [
+      { url: '/pricing', priority: '0.9' },
+      { url: '/products', priority: '0.9' },
+      { url: '/about', priority: '0.7' },
+      { url: '/contact', priority: '0.7' },
+      { url: '/comparisons', priority: '0.6' },
+      { url: '/privacy-policy', priority: '0.5' },
+      { url: '/terms-of-service', priority: '0.5' },
+      { url: '/refund-policy', priority: '0.5' },
+      { url: '/risk-disclaimer', priority: '0.5' }
+    ];
+    
+    staticPages.forEach(page => {
+      xml += '  <url>\n';
+      xml += `    <loc>${baseUrl}${page.url}</loc>\n`;
+      xml += `    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>\n`;
+      xml += '    <changefreq>monthly</changefreq>\n';
+      xml += `    <priority>${page.priority}</priority>\n`;
+      xml += '  </url>\n';
+    });
+    
+    xml += '</urlset>';
+    
+    res.header('Content-Type', 'application/xml');
+    res.send(xml);
+    
+    console.log(`🗺️ Sitemap generated with ${posts.length + staticPages.length + 2} URLs`);
+  } catch (error) {
+    console.error('Error generating sitemap:', error);
+    res.status(500).send('Error generating sitemap');
+  }
+});
+
+/**
+ * Generate robots.txt for SEO
+ * GET /robots.txt
+ */
+app.get('/robots.txt', (req, res) => {
+  const baseUrl = process.env.FRONTEND_URL || 'https://technests.ai';
+  
+  const robotsTxt = `# TechNests Robots.txt
+User-agent: *
+Allow: /
+Allow: /blog
+Allow: /blog/*
+Allow: /products
+Allow: /pricing
+
+# Disallow admin pages
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /api/
+
+# Sitemap
+Sitemap: ${baseUrl}/sitemap.xml
+
+# Crawl-delay
+Crawl-delay: 1
+`;
+  
+  res.header('Content-Type', 'text/plain');
+  res.send(robotsTxt);
+  
+  console.log('🤖 Robots.txt served');
+});
+
 // ============================================
 // PRICING/PRODUCTS MANAGEMENT ENDPOINTS
 // ============================================
