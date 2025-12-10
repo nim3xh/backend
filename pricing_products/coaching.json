@@ -11,6 +11,11 @@
     "Email Support"
   ],
   "subscriptionLink": "",
+  "trialPrice": 0,
+  "subscriptionPrice": 0,
+  "trialStripeLink": "",
+  "subscriptionStripeLink": "",
+  "coachingEnabled": true,
   "featured": false,
   "status": "active",
   "order": 0

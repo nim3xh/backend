@@ -11,6 +11,11 @@
     "Cancel Anytime"
   ],
   "subscriptionLink": "",
+  "trialPrice": 74.99,
+  "subscriptionPrice": 69.99,
+  "trialStripeLink": "",
+  "subscriptionStripeLink": "",
+  "coachingEnabled": false,
   "featured": false,
   "status": "active",
   "order": 0

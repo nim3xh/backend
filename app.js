@@ -1704,7 +1704,7 @@ app.get('/api/admin/users', authenticateToken, (req, res) => {
     }
 
     // Remove sensitive data (passwords)
-    const sanitizedUsers = users.map(user => {
+    let sanitizedUsers = users.map(user => {
       const { passwordHash, ...userWithoutPassword } = user;
       return userWithoutPassword;
     });
@@ -1712,10 +1712,37 @@ app.get('/api/admin/users', authenticateToken, (req, res) => {
     // Sort by creation date (newest first)
     sanitizedUsers.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
+    // Apply search filter
+    const { search, page = 1, limit = 10 } = req.query;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      sanitizedUsers = sanitizedUsers.filter(u =>
+        (u.displayName && u.displayName.toLowerCase().includes(searchLower)) ||
+        (u.username && u.username.toLowerCase().includes(searchLower)) ||
+        (u.email && u.email.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Calculate pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const total = sanitizedUsers.length;
+    const totalPages = Math.ceil(total / limitNum);
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    const paginatedUsers = sanitizedUsers.slice(startIndex, endIndex);
+
     res.json({
       success: true,
-      users: sanitizedUsers,
-      total: sanitizedUsers.length
+      users: paginatedUsers,
+      total: paginatedUsers.length,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        hasMore: pageNum < totalPages
+      }
     });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -1728,13 +1755,17 @@ app.get('/api/admin/users', authenticateToken, (req, res) => {
 
 
 /**
- * Get all blog posts (public endpoint)
+ * Get all blog posts (public endpoint with pagination)
  * GET /api/blog/posts
- * Query params: status (optional) - filter by 'published' or 'draft'
+ * Query params: 
+ *   - status (optional) - filter by 'published' or 'draft'
+ *   - page (optional) - page number (default: 1)
+ *   - limit (optional) - items per page (default: 10)
+ *   - search (optional) - search term for title, excerpt, or content
  */
 app.get('/api/blog/posts', (req, res) => {
   try {
-    const { status } = req.query;
+    const { status, page = '1', limit = '10', search = '' } = req.query;
     
     let posts = loadBlogPosts();
     
@@ -1743,13 +1774,41 @@ app.get('/api/blog/posts', (req, res) => {
       posts = posts.filter(post => post.status === status);
     }
     
+    // Search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      posts = posts.filter(post => 
+        post.title.toLowerCase().includes(searchLower) ||
+        post.excerpt.toLowerCase().includes(searchLower) ||
+        post.content.toLowerCase().includes(searchLower) ||
+        post.category.toLowerCase().includes(searchLower) ||
+        post.author.toLowerCase().includes(searchLower)
+      );
+    }
+    
     // Sort by date (newest first)
     posts.sort((a, b) => new Date(b.date) - new Date(a.date));
     
+    // Calculate pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    
+    const paginatedPosts = posts.slice(startIndex, endIndex);
+    const totalPages = Math.ceil(posts.length / limitNum);
+    const hasMore = pageNum < totalPages;
+    
     res.json({
       success: true,
-      posts: posts,
-      total: posts.length
+      posts: paginatedPosts,
+      pagination: {
+        total: posts.length,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: totalPages,
+        hasMore: hasMore
+      }
     });
   } catch (error) {
     console.error('Error fetching blog posts:', error);
@@ -2280,6 +2339,11 @@ const initializePricingProducts = () => {
         description: "Complete planning solution for prop traders",
         features: ["Trade Planning", "Risk Management", "Daily Goals", "Performance Tracking"],
         subscriptionLink: "",
+        trialPrice: 59.99,
+        subscriptionPrice: 49.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: true,
         status: "active",
         order: 1
@@ -2292,6 +2356,11 @@ const initializePricingProducts = () => {
         description: "Advanced trading analytics and insights",
         features: ["Real-time Analytics", "Trade Analysis", "Pattern Recognition", "Custom Alerts"],
         subscriptionLink: "",
+        trialPrice: 74.99,
+        subscriptionPrice: 69.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: true,
         status: "active",
         order: 2
@@ -2304,6 +2373,11 @@ const initializePricingProducts = () => {
         description: "Professional trading journal",
         features: ["Trade Journaling", "Performance Reports", "Emotion Tracking", "Notes & Tags"],
         subscriptionLink: "",
+        trialPrice: 49.99,
+        subscriptionPrice: 39.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: true,
         status: "active",
         order: 3
@@ -2316,6 +2390,11 @@ const initializePricingProducts = () => {
         description: "Screen recording for traders",
         features: ["HD Screen Recording", "Multi-Monitor Support", "Cloud Storage", "Easy Sharing"],
         subscriptionLink: "",
+        trialPrice: 39,
+        subscriptionPrice: 24.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: false,
         status: "active",
         order: 4
@@ -2328,6 +2407,11 @@ const initializePricingProducts = () => {
         description: "Record and review your trading sessions",
         features: ["Session Recording", "Playback Analysis", "Annotations", "Export Options"],
         subscriptionLink: "",
+        trialPrice: 49,
+        subscriptionPrice: 29.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: false,
         status: "active",
         order: 5
@@ -2340,6 +2424,11 @@ const initializePricingProducts = () => {
         description: "Stay current with latest features",
         features: ["Monthly Updates", "New Features", "Bug Fixes", "Priority Support"],
         subscriptionLink: "",
+        trialPrice: 0,
+        subscriptionPrice: 29.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: false,
         status: "active",
         order: 6
@@ -2352,6 +2441,11 @@ const initializePricingProducts = () => {
         description: "Complete professional setup service",
         features: ["Full Environment Setup", "Custom Configuration", "Training Session", "30-Day Support"],
         subscriptionLink: "",
+        trialPrice: 0,
+        subscriptionPrice: 0,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: false,
         status: "active",
         order: 7
@@ -2364,6 +2458,11 @@ const initializePricingProducts = () => {
         description: "Personalized trading strategy development",
         features: ["Strategy Analysis", "Custom Development", "Backtesting", "Implementation Guide"],
         subscriptionLink: "",
+        trialPrice: 0,
+        subscriptionPrice: 0,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: false,
         status: "active",
         order: 8
@@ -2376,6 +2475,11 @@ const initializePricingProducts = () => {
         description: "Personal coaching for prop firm success",
         features: ["1-on-1 Sessions", "Personalized Plan", "Weekly Check-ins", "Email Support"],
         subscriptionLink: "",
+        trialPrice: 0,
+        subscriptionPrice: 0,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: true,
         featured: false,
         status: "active",
         order: 9
@@ -2388,6 +2492,11 @@ const initializePricingProducts = () => {
         description: "Try Prop Trade Planner risk-free",
         features: ["Full Access", "14-Day Trial", "No Commitment", "Cancel Anytime"],
         subscriptionLink: "",
+        trialPrice: 59.99,
+        subscriptionPrice: 49.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: false,
         status: "active",
         order: 10
@@ -2400,6 +2509,11 @@ const initializePricingProducts = () => {
         description: "Try TradeRx risk-free",
         features: ["Full Access", "14-Day Trial", "No Commitment", "Cancel Anytime"],
         subscriptionLink: "",
+        trialPrice: 74.99,
+        subscriptionPrice: 69.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: false,
         status: "active",
         order: 11
@@ -2412,6 +2526,11 @@ const initializePricingProducts = () => {
         description: "Try JournalX risk-free",
         features: ["Full Access", "14-Day Trial", "No Commitment", "Cancel Anytime"],
         subscriptionLink: "",
+        trialPrice: 49.99,
+        subscriptionPrice: 39.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: false,
         status: "active",
         order: 12
@@ -2424,6 +2543,11 @@ const initializePricingProducts = () => {
         description: "Try TradeCam risk-free",
         features: ["Full Access", "14-Day Trial", "No Commitment", "Cancel Anytime"],
         subscriptionLink: "",
+        trialPrice: 39,
+        subscriptionPrice: 24.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: false,
         status: "active",
         order: 13
@@ -2436,6 +2560,11 @@ const initializePricingProducts = () => {
         description: "Try Trade Video Recorder risk-free",
         features: ["Full Access", "14-Day Trial", "No Commitment", "Cancel Anytime"],
         subscriptionLink: "",
+        trialPrice: 49,
+        subscriptionPrice: 29.99,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: false,
         status: "active",
         order: 14
@@ -2448,6 +2577,11 @@ const initializePricingProducts = () => {
         description: "Try our complete suite risk-free",
         features: ["All Three Products", "14-Day Trial", "No Commitment", "Cancel Anytime"],
         subscriptionLink: "",
+        trialPrice: 99,
+        subscriptionPrice: 0,
+        trialStripeLink: "",
+        subscriptionStripeLink: "",
+        coachingEnabled: false,
         featured: true,
         status: "active",
         order: 15
@@ -2471,18 +2605,43 @@ app.get('/api/pricing/products', (req, res) => {
     let products = loadPricingProducts();
     
     // Filter by status if specified
-    const { status } = req.query;
+    const { status, search, page = 1, limit = 10 } = req.query;
     if (status) {
       products = products.filter(p => p.status === status);
+    }
+    
+    // Apply search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      products = products.filter(p => 
+        (p.name && p.name.toLowerCase().includes(searchLower)) ||
+        (p.description && p.description.toLowerCase().includes(searchLower))
+      );
     }
     
     // Sort by order
     products.sort((a, b) => (a.order || 0) - (b.order || 0));
     
+    // Calculate pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const total = products.length;
+    const totalPages = Math.ceil(total / limitNum);
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    const paginatedProducts = products.slice(startIndex, endIndex);
+    
     res.json({
       success: true,
-      products,
-      count: products.length
+      products: paginatedProducts,
+      count: paginatedProducts.length,
+      pagination: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages,
+        hasMore: pageNum < totalPages
+      }
     });
   } catch (error) {
     console.error('Error fetching pricing products:', error);
