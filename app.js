@@ -1248,6 +1248,30 @@ if (!fs.existsSync(BLOG_POSTS_DIR)) {
   console.log('📁 Created blog_posts directory');
 }
 
+// Helper function to generate URL-friendly slug from title
+const generateSlug = (title) => {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '') // Remove special characters
+    .replace(/[\s_]+/g, '-')   // Replace spaces and underscores with hyphens
+    .replace(/^-+|-+$/g, '');  // Remove leading/trailing hyphens
+};
+
+// Helper function to ensure slug uniqueness
+const ensureUniqueSlug = (slug, excludeId = null) => {
+  const posts = loadBlogPosts();
+  let uniqueSlug = slug;
+  let counter = 1;
+  
+  while (posts.some(p => p.slug === uniqueSlug && p.id !== excludeId)) {
+    uniqueSlug = `${slug}-${counter}`;
+    counter++;
+  }
+  
+  return uniqueSlug;
+};
+
 // Helper functions for file operations
 const getBlogPostFilePath = (id) => path.join(BLOG_POSTS_DIR, `${id}.json`);
 
@@ -1353,8 +1377,29 @@ const initializeSamplePosts = () => {
   }
 };
 
+// Migrate existing posts to add slugs if missing
+const migratePostsWithSlugs = () => {
+  const posts = loadBlogPosts();
+  let migrated = 0;
+  
+  posts.forEach(post => {
+    if (!post.slug) {
+      post.slug = ensureUniqueSlug(generateSlug(post.title), post.id);
+      saveBlogPost(post);
+      migrated++;
+    }
+  });
+  
+  if (migrated > 0) {
+    console.log(`✅ Migrated ${migrated} blog posts with slugs`);
+  }
+};
+
 // Initialize sample posts on startup
 initializeSamplePosts();
+
+// Migrate existing posts to add slugs
+migratePostsWithSlugs();
 
 // ==== JWT AUTHENTICATION MIDDLEWARE ====
 
@@ -1752,6 +1797,42 @@ app.get('/api/blog/posts/:id', (req, res) => {
 });
 
 /**
+ * Get a single blog post by slug
+ * GET /api/blog/posts/slug/:slug
+ */
+app.get('/api/blog/posts/slug/:slug', (req, res) => {
+  try {
+    const { slug } = req.params;
+    const posts = loadBlogPosts();
+    const post = posts.find(p => p.slug === slug);
+    
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        error: 'Blog post not found'
+      });
+    }
+    
+    // Increment views for published posts
+    if (post.status === 'published') {
+      post.views += 1;
+      saveBlogPost(post);
+    }
+    
+    res.json({
+      success: true,
+      post
+    });
+  } catch (error) {
+    console.error('Error fetching blog post:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch blog post'
+    });
+  }
+});
+
+/**
  * Upload blog post image (admin only)
  * POST /api/blog/upload-image
  * 
@@ -1811,7 +1892,8 @@ app.post('/api/blog/posts', authenticateToken, (req, res) => {
       status,
       author,
       readTime,
-      image
+      image,
+      slug
     } = req.body;
     
     // Validate required fields
@@ -1822,10 +1904,15 @@ app.post('/api/blog/posts', authenticateToken, (req, res) => {
       });
     }
     
+    // Generate or validate slug
+    let postSlug = slug || generateSlug(title);
+    postSlug = ensureUniqueSlug(postSlug);
+    
     // Create new post
     const newPost = {
       id: Date.now().toString(),
       title,
+      slug: postSlug,
       excerpt,
       content,
       category: category || 'Trading Tips',
@@ -1878,6 +1965,17 @@ app.put('/api/blog/posts/:id', authenticateToken, (req, res) => {
         success: false,
         error: 'Blog post not found'
       });
+    }
+    
+    // Handle slug updates
+    if (updateData.slug && updateData.slug !== post.slug) {
+      // Validate and ensure unique slug
+      updateData.slug = generateSlug(updateData.slug);
+      updateData.slug = ensureUniqueSlug(updateData.slug, id);
+    } else if (updateData.title && updateData.title !== post.title && !updateData.slug) {
+      // If title changes but no slug provided, regenerate slug from title
+      updateData.slug = generateSlug(updateData.title);
+      updateData.slug = ensureUniqueSlug(updateData.slug, id);
     }
     
     // If image is being changed, delete the old image
