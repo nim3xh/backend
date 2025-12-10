@@ -11,11 +11,6 @@
     "Custom Alerts"
   ],
   "subscriptionLink": "https://buy.stripe.com/00w3cngGB4gFevk2hl9Zm0B?locale=en&__embed_source=buy_btn_1SQO1i04dzdw9mwCE1nQtQj3",
-  "trialPrice": 74.99,
-  "subscriptionPrice": 69.99,
-  "trialStripeLink": "",
-  "subscriptionStripeLink": "https://buy.stripe.com/00w3cngGB4gFevk2hl9Zm0B?locale=en&__embed_source=buy_btn_1SQO1i04dzdw9mwCE1nQtQj3",
-  "coachingEnabled": false,
   "featured": true,
   "status": "active",
   "order": 0

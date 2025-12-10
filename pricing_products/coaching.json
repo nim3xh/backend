@@ -5,18 +5,12 @@
   "billingPeriod": "one-time",
   "description": "Personal coaching for prop firm success",
   "features": [
-    "1-on-1 Sessions",
     "Personalized Plan",
     "Weekly Check-ins",
     "Email Support"
   ],
   "subscriptionLink": "",
-  "trialPrice": 0,
-  "subscriptionPrice": 0,
-  "trialStripeLink": "",
-  "subscriptionStripeLink": "",
-  "coachingEnabled": true,
-  "featured": false,
+  "featured": true,
   "status": "active",
   "order": 0
 }
