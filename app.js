@@ -1952,6 +1952,7 @@ app.post('/api/blog/posts', authenticateToken, (req, res) => {
       author,
       readTime,
       image,
+      audioUrl,
       slug
     } = req.body;
     
@@ -1980,7 +1981,8 @@ app.post('/api/blog/posts', authenticateToken, (req, res) => {
       author: author || 'Admin',
       views: 0,
       readTime: readTime || '5 min read',
-      image: image || ''
+      image: image || '',
+      audioUrl: audioUrl || ''
     };
     
     // Save to file
@@ -2185,8 +2187,10 @@ app.get('/sitemap.xml', (req, res) => {
     
     // Add all published blog posts
     posts.forEach(post => {
+      // Use slug if available, fallback to id for backwards compatibility
+      const urlPath = post.slug || post.id;
       xml += '  <url>\n';
-      xml += `    <loc>${baseUrl}/blog/${post.id}</loc>\n`;
+      xml += `    <loc>${baseUrl}/blog/${urlPath}</loc>\n`;
       xml += `    <lastmod>${post.updatedAt || post.date}</lastmod>\n`;
       xml += '    <changefreq>weekly</changefreq>\n';
       xml += '    <priority>0.8</priority>\n';

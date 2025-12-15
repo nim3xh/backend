@@ -118,7 +118,7 @@ function generateSubscriptionEmailTemplate(productName, downloadLink, customerNa
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
         body {
-          font-family: Arial, sans-serif;
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
           line-height: 1.6;
           color: #333;
           margin: 0;
@@ -131,10 +131,10 @@ function generateSubscriptionEmailTemplate(productName, downloadLink, customerNa
           background-color: #ffffff;
           border-radius: 8px;
           overflow: hidden;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         .header {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
           color: #ffffff;
           padding: 40px 20px;
           text-align: center;
@@ -142,49 +142,95 @@ function generateSubscriptionEmailTemplate(productName, downloadLink, customerNa
         .header h1 {
           margin: 0;
           font-size: 28px;
+          font-weight: 600;
         }
         .content {
           padding: 40px 30px;
         }
         .content h2 {
-          color: #667eea;
+          color: #1a1a2e;
           margin-top: 0;
+          font-weight: 600;
         }
         .product-info {
-          background-color: #f8f9fa;
-          border-left: 4px solid #667eea;
+          background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+          border-left: 4px solid #d4af37;
           padding: 15px 20px;
           margin: 20px 0;
+          border-radius: 4px;
         }
         .product-info h3 {
           margin: 0 0 10px 0;
-          color: #333;
+          color: #1a1a2e;
+          font-weight: 600;
+        }
+        .release-notes {
+          background-color: #f8f9fa;
+          border-left: 4px solid #0066cc;
+          padding: 20px;
+          margin: 25px 0;
+          border-radius: 4px;
+        }
+        .release-notes h3 {
+          margin: 0 0 15px 0;
+          color: #1a1a2e;
+          font-weight: 600;
+        }
+        .release-notes ul {
+          margin: 10px 0;
+          padding-left: 20px;
+        }
+        .release-notes li {
+          margin: 8px 0;
+          line-height: 1.6;
+        }
+        .feature-highlight {
+          background-color: #fff9e6;
+          border-left: 3px solid #d4af37;
+          padding: 12px 15px;
+          margin: 10px 0;
+          border-radius: 3px;
         }
         .download-button {
           display: inline-block;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: #ffffff;
+          background: linear-gradient(135deg, #d4af37 0%, #c5a028 100%);
+          color: #1a1a2e;
           text-decoration: none;
-          padding: 15px 40px;
-          border-radius: 5px;
+          padding: 16px 50px;
+          border-radius: 6px;
           font-weight: bold;
+          font-size: 16px;
           margin: 20px 0;
           text-align: center;
+          box-shadow: 0 4px 8px rgba(212, 175, 55, 0.3);
+          transition: all 0.3s ease;
         }
         .download-button:hover {
-          opacity: 0.9;
+          transform: translateY(-2px);
+          box-shadow: 0 6px 12px rgba(212, 175, 55, 0.4);
+        }
+        .download-section {
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+          padding: 30px;
+          text-align: center;
+          margin-top: 30px;
+        }
+        .download-section p {
+          color: #ffffff;
+          font-size: 16px;
+          margin-bottom: 20px;
         }
         .footer {
-          background-color: #f8f9fa;
+          background-color: #1a1a2e;
           padding: 20px 30px;
           text-align: center;
           font-size: 14px;
-          color: #666;
+          color: #cccccc;
         }
         .divider {
           height: 1px;
-          background-color: #e0e0e0;
-          margin: 20px 0;
+          background: linear-gradient(90deg, transparent, #d4af37, transparent);
+          margin: 25px 0;
         }
       </style>
     </head>
@@ -205,19 +251,37 @@ function generateSubscriptionEmailTemplate(productName, downloadLink, customerNa
           
           <p>Your subscription has been successfully activated, and you now have full access to all the features and benefits.</p>
           
-          <h2>📥 Download Your Product</h2>
-          <p>Click the button below to download your product and get started:</p>
+          <div class="divider"></div>
           
-          <div style="text-align: center;">
-            <a href="${downloadLink}" class="download-button">Download Now</a>
+          <div class="release-notes">
+            <h3>🚀 Latest TradeRx Update - What's New</h3>
+            
+            <div class="feature-highlight">
+              <strong>New Accounts Per Signal Options</strong>
+            </div>
+            <ul>
+              <li><strong>TradeRx (Default)</strong> - Preserves current behavior with dynamic scheduling and account-density logic</li>
+              <li><strong>Fixed Sizing Options: 1, 2, 3, 4, 5</strong> - Take trades on exactly that many active accounts per signal (account-density logic ignored)</li>
+              <li><strong>ALL Option</strong> - Every signal triggers trades on all active accounts</li>
+            </ul>
+            
+            <div class="feature-highlight">
+              <strong>Enhanced Output Window</strong>
+            </div>
+            <ul>
+              <li>Clearer "Daily Plan" summary for better overview</li>
+              <li>Cleaner "Entry" and "Exit" trade line displays</li>
+              <li>End-of-day results summary when trading completes</li>
+            </ul>
           </div>
           
           <div class="divider"></div>
           
           <h3>What's Next?</h3>
           <ul>
-            <li>Download and install your product using the link above</li>
-            <li>Explore all the features available with your subscription</li>
+            <li>Download and install your product using the button below</li>
+            <li>Explore the new Accounts Per Signal dropdown options</li>
+            <li>Check out the improved Output window messaging</li>
             <li>Contact our support team if you need any assistance</li>
           </ul>
           
@@ -225,6 +289,12 @@ function generateSubscriptionEmailTemplate(productName, downloadLink, customerNa
           
           <p>Thank you for choosing us. We look forward to serving you!</p>
         </div>
+        
+        <div class="download-section">
+          <p><strong>Ready to get started? Download your product now!</strong></p>
+          <a href="${downloadLink}" class="download-button">📥 DOWNLOAD NOW</a>
+        </div>
+        
         <div class="footer">
           <p>This is an automated email. Please do not reply to this message.</p>
           <p>&copy; ${new Date().getFullYear()} All rights reserved.</p>
