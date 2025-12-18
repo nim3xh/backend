@@ -12,5 +12,10 @@
   "subscriptionLink": "",
   "featured": true,
   "status": "active",
-  "order": 0
+  "order": 0,
+  "images": [
+    "/uploads/product-images/product-1765968839889-775722710.jpg"
+  ],
+  "color": "accent",
+  "coachingEnabled": true
 }

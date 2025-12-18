@@ -15,7 +15,85 @@ const {
   recordEmailSent,
 } = require("./subscriptionTracker");
 
+
 const app = express();
+
+const sharp = require('sharp');
+
+const TWO_MB = 2 * 1024 * 1024;
+
+async function compressImageTo2MB(filePath, mimeType) {
+  const fs = require('fs');
+  const path = require('path');
+
+  // If already <= 2MB, nothing to do
+  const originalStat = fs.statSync(filePath);
+  if (originalStat.size <= TWO_MB) return;
+
+  // Decide output format based on input (keep same extension to preserve URL)
+  const ext = path.extname(filePath).toLowerCase();
+  const isJpeg = mimeType === 'image/jpeg' || ext === '.jpg' || ext === '.jpeg';
+  const isPng  = mimeType === 'image/png'  || ext === '.png';
+  const isWebp = mimeType === 'image/webp' || ext === '.webp';
+
+  // If format is unexpected, just try jpeg-like compression via sharp defaults
+  const format = isPng ? 'png' : (isWebp ? 'webp' : 'jpeg');
+
+  const tempPath = filePath + '.tmp';
+
+  // Strategy:
+  // 1) Resize "inside" max dimensions (helps huge photos massively)
+  // 2) Iterate quality / compression until <= 2MB (or hit limits)
+  const resizeAttempts = [
+    { max: 2400, minQuality: 55 },
+    { max: 2000, minQuality: 50 },
+    { max: 1600, minQuality: 45 },
+    { max: 1200, minQuality: 40 },
+  ];
+
+  for (const attempt of resizeAttempts) {
+    // Start a bit high, step down
+    for (let quality = 82; quality >= attempt.minQuality; quality -= 6) {
+      let pipeline = sharp(filePath, { failOn: 'none' })
+        .rotate() // respect EXIF orientation
+        .resize({
+          width: attempt.max,
+          height: attempt.max,
+          fit: 'inside',
+          withoutEnlargement: true
+        });
+
+      if (format === 'png') {
+        // PNG doesn't use "quality" the same way; do best-effort compression.
+        // palette:true often reduces size for graphics; for photos it may or may not help.
+        pipeline = pipeline.png({ compressionLevel: 9, palette: true });
+      } else if (format === 'webp') {
+        pipeline = pipeline.webp({ quality });
+      } else {
+        // jpeg
+        pipeline = pipeline.jpeg({ quality, mozjpeg: true });
+      }
+
+      await pipeline.toFile(tempPath);
+
+      const stat = fs.statSync(tempPath);
+      if (stat.size <= TWO_MB) {
+        fs.renameSync(tempPath, filePath); // overwrite original
+        return;
+      }
+
+      // Too big -> remove temp and continue
+      fs.unlinkSync(tempPath);
+    }
+  }
+
+  // If we reach here, we couldn't get it under 2MB
+  // Clean temp if it exists
+  if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+
+  throw new Error('Image could not be compressed under 2MB');
+}
+
 
 // ==== WEBHOOK MIDDLEWARE (must be BEFORE express.json()) ====
 // ⚠️ DISABLED: Using CSV file watcher instead
@@ -212,12 +290,12 @@ console.log('📸 Multer configured for blog image uploads (max 5MB)');
 // Helper function to delete image file
 function deleteImageFile(imageUrl) {
   if (!imageUrl || imageUrl === '') return;
-  
+
   try {
     // Extract filename from URL (e.g., /uploads/blog-images/blog-123456.jpg)
     const filename = imageUrl.split('/').pop();
     const filePath = path.join(__dirname, 'public/uploads/blog-images', filename);
-    
+
     // Check if file exists
     const fs = require('fs');
     if (fs.existsSync(filePath)) {
@@ -385,11 +463,11 @@ app.get("/stripe/subscription-status", async (req, res) => {
     const tempWhitelistEntry = temporaryWhitelist.find(
       (entry) => entry.email === email
     );
-    
+
     if (tempWhitelistEntry) {
       const startDate = new Date(tempWhitelistEntry.start_date);
       const endDate = new Date(tempWhitelistEntry.end_date);
-      
+
       if (now >= startDate && now <= endDate) {
         return res.json({
           source: "temporary_whitelist",
@@ -563,7 +641,7 @@ app.post("/send-test-email", async (req, res) => {
 app.post("/send-subscription-email", async (req, res) => {
   try {
     const { email, planNickname, customerName } = req.body;
-    
+
     // Validate required fields
     if (!email) {
       return res.status(400).json({
@@ -571,29 +649,29 @@ app.post("/send-subscription-email", async (req, res) => {
         error: "Missing 'email' in request body",
       });
     }
-    
+
     if (!planNickname) {
       return res.status(400).json({
         success: false,
         error: "Missing 'planNickname' in request body",
       });
     }
-    
+
     // Import required modules
     const { getDownloadLinkByPlanNickname } = require("./productLinkMapper");
-    
+
     // Get download link based on plan nickname
     const downloadLink = getDownloadLinkByPlanNickname(planNickname);
-    
+
     // Prepare customer name
     const name = customerName || email.split("@")[0] || "Valued Customer";
-    
+
     console.log(`\n📧 Manual subscription email request:`);
     console.log(`   Email: ${email}`);
     console.log(`   Plan: ${planNickname}`);
     console.log(`   Customer Name: ${name}`);
     console.log(`   Download Link: ${downloadLink}`);
-    
+
     // Send the subscription email
     await sendSubscriptionEmail({
       to: email,
@@ -601,9 +679,9 @@ app.post("/send-subscription-email", async (req, res) => {
       downloadLink: downloadLink,
       customerName: name,
     });
-    
+
     console.log(`✅ Manual subscription email sent successfully to ${email}\n`);
-    
+
     return res.json({
       success: true,
       message: "Subscription email sent successfully",
@@ -639,17 +717,17 @@ app.post("/send-subscription-email", async (req, res) => {
 app.post("/test-subscription-email", async (req, res) => {
   try {
     const testMode = process.env.TEST_MODE === "true" || process.env.TEST_MODE === "1";
-    
+
     if (!testMode) {
       return res.status(403).json({
         success: false,
         error: "Test mode is not enabled. Set TEST_MODE=true in .env to use this endpoint.",
       });
     }
-    
+
     const testEmail = process.env.TEST_EMAIL || "nim3xh@gmail.com";
     const { planNickname, amount, downloadLink } = req.body;
-    
+
     // Generate test subscription data
     const testSubscriptionData = {
       source: "test",
@@ -665,15 +743,15 @@ app.post("/test-subscription-email", async (req, res) => {
       currency: "usd",
       planNickname: planNickname || "Test Plan",
     };
-    
+
     console.log("🧪 TEST MODE: Sending test subscription email");
     console.log(`   To: ${testEmail}`);
     console.log(`   Plan: ${testSubscriptionData.planNickname}`);
     console.log(`   Amount: $${testSubscriptionData.plan_amount}`);
-    
+
     // Check if should send email
     const shouldSend = shouldSendEmail(testEmail, testSubscriptionData.subscription_id);
-    
+
     if (!shouldSend) {
       return res.json({
         success: true,
@@ -683,7 +761,7 @@ app.post("/test-subscription-email", async (req, res) => {
         subscription: testSubscriptionData,
       });
     }
-    
+
     // Send email
     await sendSubscriptionEmail({
       to: testEmail,
@@ -691,12 +769,12 @@ app.post("/test-subscription-email", async (req, res) => {
       downloadLink: downloadLink || process.env.DEFAULT_DOWNLOAD_LINK || "https://example.com/download",
       customerName: "Test Customer",
     });
-    
+
     // Record it
     recordEmailSent(testSubscriptionData);
-    
+
     console.log("✅ Test subscription email sent successfully");
-    
+
     return res.json({
       success: true,
       test_mode: true,
@@ -726,10 +804,10 @@ app.get("/subscription-emails", (req, res) => {
       getAllSubscriptions,
       getStatistics,
     } = require("./subscriptionTracker");
-    
+
     const subscriptions = getAllSubscriptions();
     const stats = getStatistics();
-    
+
     return res.json({
       success: true,
       total: subscriptions.length,
@@ -753,9 +831,9 @@ app.get("/subscription-emails/:email", (req, res) => {
   try {
     const email = req.params.email.toLowerCase();
     const { findSubscriptionsByEmail } = require("./subscriptionTracker");
-    
+
     const subscriptions = findSubscriptionsByEmail(email);
-    
+
     return res.json({
       success: true,
       email: email,
@@ -778,9 +856,9 @@ app.get("/subscription-emails/:email", (req, res) => {
 app.get("/subscription-emails-stats", (req, res) => {
   try {
     const { getStatistics } = require("./subscriptionTracker");
-    
+
     const stats = getStatistics();
-    
+
     return res.json({
       success: true,
       statistics: stats,
@@ -805,7 +883,7 @@ app.get('/file-creation-time', async (req, res) => {
   try {
     const path = require('path');
     const fs = require('fs');
-    
+
     const dashboardsPath = path.join(__dirname, 'dashboards');
     console.log("Checking if dashboards folder exists:", fs.existsSync(dashboardsPath));
 
@@ -856,36 +934,31 @@ app.get('/file-creation-time', async (req, res) => {
  * Download tradeRx indicator
  * GET /download/tradeRx
  */
-app.get("/download/traderx", (req, res) => {
-  const path = require('path');
-  const fs = require('fs');
-  
-  const filePath = path.resolve(__dirname, "dll", "indicator.zip");
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).send("File not found");
-  }
-  res.download(filePath, "indicator.zip");
-});
+// app.get("/download/traderx", (req, res) => {
+//   const path = require('path');
+//   const fs = require('fs');
 
-// Exact product names (same as folders)
-const PRODUCT_NAMES = [
-  "Prop Trade Planner - Dr.Markets",
-  "TradeRx",
-  "JournalX",
-  "TradeCam",
-  "Trade Video Recorder",
-  "Regular Updates",
-  "White-Glove Prop Trading Environment Setup",
-  "Custom Strategy Development (Advisory)",
-  "One-on-one Prop Firm Journey Coaching",
-  "Prop Trade Planner Dr.Markets Trial",
-  "TradeRx - Trial",
-  "JournalX Trial",
-  "TradeCam Trial",
-  "Trade Video Recorder Trial",
-  "Core Bundle Trial — Planner + TradeRx + JournalX",
-  "Core Bundle — Planner + TradeRx + JournalX",
-];
+//   const filePath = path.resolve(__dirname, "dll", "indicator.zip");
+//   if (!fs.existsSync(filePath)) {
+//     return res.status(404).send("File not found");
+//   }
+//   res.download(filePath, "indicator.zip");
+// });
+
+// Helper to load product names
+const loadProductNames = () => {
+  const filePath = path.join(__dirname, 'product_names.json');
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+};
+
+// Helper to save product names
+const saveProductNames = (names) => {
+  const filePath = path.join(__dirname, 'product_names.json');
+  fs.writeFileSync(filePath, JSON.stringify(names, null, 2));
+};
 
 /**
  * Download specific product by name
@@ -894,11 +967,13 @@ const PRODUCT_NAMES = [
 app.get("/download/:productName", (req, res) => {
   const path = require('path');
   const fs = require('fs');
-  
+
   const requested = req.params.productName;
 
+  const productNames = loadProductNames();
+
   // Find an exact match (case-insensitive)
-  const match = PRODUCT_NAMES.find(
+  const match = productNames.find(
     (name) => name.toLowerCase() === requested.toLowerCase()
   );
 
@@ -924,10 +999,10 @@ app.get("/download/:productName", (req, res) => {
  */
 app.get('/current-time', (req, res) => {
   const timeZone = 'America/Los_Angeles'; // Pacific Standard Time (PST)
-  
+
   const getFormattedTime = () => {
     const now = new Date();
-    
+
     const formattedDate = new Intl.DateTimeFormat("en-US", {
       year: "numeric",
       month: "long",
@@ -943,9 +1018,9 @@ app.get('/current-time', (req, res) => {
       timeZone,
     }).format(now);
 
-    return `${formattedDate} ${formattedTime}`; 
+    return `${formattedDate} ${formattedTime}`;
   };
-  
+
   const time = getFormattedTime();
   res.json({ time });
 });
@@ -957,7 +1032,7 @@ app.get('/current-time', (req, res) => {
 app.get('/download/demo', (req, res) => {
   const path = require('path');
   const fs = require('fs');
-  
+
   const filePath = path.join(__dirname, 'upload_sample.csv');
   const fileName = 'dashboard_data_sample.csv';
 
@@ -983,7 +1058,7 @@ app.get('/download/trades/:accountNumber', (req, res) => {
   try {
     const path = require('path');
     const fs = require('fs');
-    
+
     const { accountNumber } = req.params;
     console.log(accountNumber);
 
@@ -1030,7 +1105,7 @@ app.get('/download/trades/:accountNumber', (req, res) => {
 app.get('/samplefiles/:filename', (req, res) => {
   const path = require('path');
   const fs = require('fs');
-  
+
   const { filename } = req.params;
 
   // Sanitize filename to prevent directory traversal
@@ -1064,7 +1139,7 @@ app.post('/alert-hook', (req, res) => {
   try {
     const path = require('path');
     const fs = require('fs');
-    
+
     const dashboardsPath = path.join(__dirname, 'dashboards', 'test');
     const filePath = path.join(dashboardsPath, 'test.txt');
 
@@ -1095,7 +1170,7 @@ app.get('/is-holiday', (req, res) => {
   const path = require('path');
   const fs = require('fs');
   const csv = require('csv-parser');
-  
+
   const { date } = req.query;
 
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -1158,12 +1233,12 @@ const TEMPORARY_EXPIRATION = new Date('2025-12-31T23:59:59');
 // Helper function to check if email is whitelisted
 function isWhitelistedEmail(email) {
   const emailLower = email.toLowerCase();
-  
+
   // Check permanent emails
   if (PERMANENT_EMAILS.map(e => e.toLowerCase()).includes(emailLower)) {
     return { whitelisted: true, isTemporary: false };
   }
-  
+
   // Check temporary emails with expiration
   if (TEMPORARY_EMAILS.map(e => e.toLowerCase()).includes(emailLower)) {
     const now = new Date();
@@ -1171,7 +1246,7 @@ function isWhitelistedEmail(email) {
       return { whitelisted: true, isTemporary: true };
     }
   }
-  
+
   return { whitelisted: false, isTemporary: false };
 }
 
@@ -1192,17 +1267,17 @@ app.get('/events/by-date', (req, res) => {
     const path = require('path');
     const fs = require('fs');
     const csv = require('csv-parser');
-    
+
     const csvFilePath = path.join(__dirname, 'events', '2025-events.csv');
-    
+
     // Check if the CSV file exists
     if (!fs.existsSync(csvFilePath)) {
-      return res.status(404).json({ 
-        success: false, 
-        message: 'Events data file not found.' 
+      return res.status(404).json({
+        success: false,
+        message: 'Events data file not found.'
       });
     }
-    
+
     const results = [];
 
     fs.createReadStream(csvFilePath)
@@ -1248,6 +1323,7 @@ if (!fs.existsSync(BLOG_POSTS_DIR)) {
   console.log('📁 Created blog_posts directory');
 }
 
+
 // Helper function to generate URL-friendly slug from title
 const generateSlug = (title) => {
   return title
@@ -1263,12 +1339,12 @@ const ensureUniqueSlug = (slug, excludeId = null) => {
   const posts = loadBlogPosts();
   let uniqueSlug = slug;
   let counter = 1;
-  
+
   while (posts.some(p => p.slug === uniqueSlug && p.id !== excludeId)) {
     uniqueSlug = `${slug}-${counter}`;
     counter++;
   }
-  
+
   return uniqueSlug;
 };
 
@@ -1279,7 +1355,7 @@ const loadBlogPosts = () => {
   try {
     const files = fs.readdirSync(BLOG_POSTS_DIR);
     const posts = [];
-    
+
     for (const file of files) {
       if (file.endsWith('.json')) {
         const filePath = path.join(BLOG_POSTS_DIR, file);
@@ -1288,7 +1364,7 @@ const loadBlogPosts = () => {
         posts.push(post);
       }
     }
-    
+
     return posts;
   } catch (error) {
     console.error('Error loading blog posts:', error);
@@ -1301,6 +1377,10 @@ const saveBlogPost = (post) => {
     const filePath = getBlogPostFilePath(post.id);
     fs.writeFileSync(filePath, JSON.stringify(post, null, 2), 'utf8');
     console.log(`✅ Saved blog post: ${post.id} - ${post.title}`);
+
+    // Regenerate sitemap if post is published or was published
+    regenerateSitemap();
+
     return true;
   } catch (error) {
     console.error('Error saving blog post:', error);
@@ -1314,6 +1394,10 @@ const deleteBlogPost = (id) => {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
       console.log(`🗑️ Deleted blog post: ${id}`);
+
+      // Update sitemap
+      regenerateSitemap();
+
       return true;
     }
     return false;
@@ -1326,10 +1410,10 @@ const deleteBlogPost = (id) => {
 // Initialize with sample posts if directory is empty
 const initializeSamplePosts = () => {
   const existingPosts = loadBlogPosts();
-  
+
   if (existingPosts.length === 0) {
     console.log('📝 Initializing with sample blog posts...');
-    
+
     const samplePosts = [
       {
         id: "1",
@@ -1371,7 +1455,7 @@ const initializeSamplePosts = () => {
         image: ""
       }
     ];
-    
+
     samplePosts.forEach(post => saveBlogPost(post));
     console.log('✅ Sample posts initialized');
   }
@@ -1381,7 +1465,7 @@ const initializeSamplePosts = () => {
 const migratePostsWithSlugs = () => {
   const posts = loadBlogPosts();
   let migrated = 0;
-  
+
   posts.forEach(post => {
     if (!post.slug) {
       post.slug = ensureUniqueSlug(generateSlug(post.title), post.id);
@@ -1389,17 +1473,12 @@ const migratePostsWithSlugs = () => {
       migrated++;
     }
   });
-  
+
   if (migrated > 0) {
     console.log(`✅ Migrated ${migrated} blog posts with slugs`);
   }
 };
 
-// Initialize sample posts on startup
-initializeSamplePosts();
-
-// Migrate existing posts to add slugs
-migratePostsWithSlugs();
 
 // ==== JWT AUTHENTICATION MIDDLEWARE ====
 
@@ -1458,7 +1537,7 @@ app.post('/api/admin/signup', async (req, res) => {
     const fs = require('fs');
     const path = require('path');
     const usersFile = path.join(__dirname, 'users.json');
-    
+
     let users = [];
     if (fs.existsSync(usersFile)) {
       const data = fs.readFileSync(usersFile, 'utf8');
@@ -1538,7 +1617,7 @@ console.log('🔑 Google OAuth routes initialized at /auth');
 app.get('/api/proxy-image', async (req, res) => {
   try {
     const imageUrl = req.query.url;
-    
+
     if (!imageUrl || !imageUrl.includes('googleusercontent.com')) {
       return res.status(400).json({ error: 'Invalid image URL' });
     }
@@ -1551,7 +1630,7 @@ app.get('/api/proxy-image', async (req, res) => {
       // Set cache headers
       res.set('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
       res.set('Content-Type', proxyRes.headers['content-type']);
-      
+
       proxyRes.pipe(res);
     }).on('error', (err) => {
       console.error('Image proxy error:', err);
@@ -1583,7 +1662,7 @@ app.post('/api/admin/login', async (req, res) => {
     const fs = require('fs');
     const path = require('path');
     const usersFile = path.join(__dirname, 'users.json');
-    
+
     let users = [];
     if (fs.existsSync(usersFile)) {
       const data = fs.readFileSync(usersFile, 'utf8');
@@ -1697,7 +1776,7 @@ app.get('/api/admin/users', authenticateToken, (req, res) => {
     // Load users from file
     const usersFile = path.join(__dirname, 'users.json');
     let users = [];
-    
+
     if (fs.existsSync(usersFile)) {
       const data = fs.readFileSync(usersFile, 'utf8');
       users = JSON.parse(data);
@@ -1766,18 +1845,18 @@ app.get('/api/admin/users', authenticateToken, (req, res) => {
 app.get('/api/blog/posts', (req, res) => {
   try {
     const { status, page = '1', limit = '10', search = '' } = req.query;
-    
+
     let posts = loadBlogPosts();
-    
+
     // Filter by status if provided
     if (status) {
       posts = posts.filter(post => post.status === status);
     }
-    
+
     // Search filter
     if (search) {
       const searchLower = search.toLowerCase();
-      posts = posts.filter(post => 
+      posts = posts.filter(post =>
         post.title.toLowerCase().includes(searchLower) ||
         post.excerpt.toLowerCase().includes(searchLower) ||
         post.content.toLowerCase().includes(searchLower) ||
@@ -1785,20 +1864,20 @@ app.get('/api/blog/posts', (req, res) => {
         post.author.toLowerCase().includes(searchLower)
       );
     }
-    
+
     // Sort by date (newest first)
     posts.sort((a, b) => new Date(b.date) - new Date(a.date));
-    
+
     // Calculate pagination
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const startIndex = (pageNum - 1) * limitNum;
     const endIndex = startIndex + limitNum;
-    
+
     const paginatedPosts = posts.slice(startIndex, endIndex);
     const totalPages = Math.ceil(posts.length / limitNum);
     const hasMore = pageNum < totalPages;
-    
+
     res.json({
       success: true,
       posts: paginatedPosts,
@@ -1828,20 +1907,20 @@ app.get('/api/blog/posts/:id', (req, res) => {
     const { id } = req.params;
     const posts = loadBlogPosts();
     const post = posts.find(p => p.id === id);
-    
+
     if (!post) {
       return res.status(404).json({
         success: false,
         error: 'Blog post not found'
       });
     }
-    
+
     // Increment views for published posts
     if (post.status === 'published') {
       post.views += 1;
       saveBlogPost(post);
     }
-    
+
     res.json({
       success: true,
       post
@@ -1864,20 +1943,20 @@ app.get('/api/blog/posts/slug/:slug', (req, res) => {
     const { slug } = req.params;
     const posts = loadBlogPosts();
     const post = posts.find(p => p.slug === slug);
-    
+
     if (!post) {
       return res.status(404).json({
         success: false,
         error: 'Blog post not found'
       });
     }
-    
+
     // Increment views for published posts
     if (post.status === 'published') {
       post.views += 1;
       saveBlogPost(post);
     }
-    
+
     res.json({
       success: true,
       post
@@ -1907,7 +1986,7 @@ app.post('/api/blog/upload-image', authenticateToken, upload.single('image'), (r
         error: req.fileValidationError
       });
     }
-    
+
     // Check if file was uploaded
     if (!req.file) {
       return res.status(400).json({
@@ -1915,12 +1994,12 @@ app.post('/api/blog/upload-image', authenticateToken, upload.single('image'), (r
         error: 'No image file provided'
       });
     }
-    
+
     // Generate the URL for the uploaded image
     const imageUrl = `/uploads/blog-images/${req.file.filename}`;
-    
+
     console.log(`📸 Blog image uploaded: ${req.file.filename} (${(req.file.size / 1024).toFixed(2)} KB)`);
-    
+
     res.json({
       success: true,
       imageUrl: imageUrl,
@@ -1952,10 +2031,11 @@ app.post('/api/blog/posts', authenticateToken, (req, res) => {
       author,
       readTime,
       image,
+      images,
       audioUrl,
       slug
     } = req.body;
-    
+
     // Validate required fields
     if (!title || !excerpt || !content) {
       return res.status(400).json({
@@ -1963,11 +2043,11 @@ app.post('/api/blog/posts', authenticateToken, (req, res) => {
         error: 'Missing required fields: title, excerpt, content'
       });
     }
-    
+
     // Generate or validate slug
     let postSlug = slug || generateSlug(title);
     postSlug = ensureUniqueSlug(postSlug);
-    
+
     // Create new post
     const newPost = {
       id: Date.now().toString(),
@@ -1982,19 +2062,20 @@ app.post('/api/blog/posts', authenticateToken, (req, res) => {
       views: 0,
       readTime: readTime || '5 min read',
       image: image || '',
+      images: images || [],
       audioUrl: audioUrl || ''
     };
-    
+
     // Save to file
     const saved = saveBlogPost(newPost);
-    
+
     if (!saved) {
       return res.status(500).json({
         success: false,
         error: 'Failed to save blog post'
       });
     }
-    
+
     res.status(201).json({
       success: true,
       post: newPost,
@@ -2017,17 +2098,17 @@ app.put('/api/blog/posts/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     const posts = loadBlogPosts();
     const post = posts.find(p => p.id === id);
-    
+
     if (!post) {
       return res.status(404).json({
         success: false,
         error: 'Blog post not found'
       });
     }
-    
+
     // Handle slug updates
     if (updateData.slug && updateData.slug !== post.slug) {
       // Validate and ensure unique slug
@@ -2038,36 +2119,36 @@ app.put('/api/blog/posts/:id', authenticateToken, (req, res) => {
       updateData.slug = generateSlug(updateData.title);
       updateData.slug = ensureUniqueSlug(updateData.slug, id);
     }
-    
+
     // If image is being changed, delete the old image
     if (updateData.image !== undefined && post.image && updateData.image !== post.image) {
       deleteImageFile(post.image);
       console.log(`🗑️ Deleted old image during update: ${post.image}`);
     }
-    
+
     // If image is being removed (set to empty string), delete the old image
     if (updateData.image === '' && post.image) {
       deleteImageFile(post.image);
       console.log(`🗑️ Deleted image during removal: ${post.image}`);
     }
-    
+
     // Update post with new data
     const updatedPost = {
       ...post,
       ...updateData,
       id // Preserve the ID
     };
-    
+
     // Save updated post to file
     const saved = saveBlogPost(updatedPost);
-    
+
     if (!saved) {
       return res.status(500).json({
         success: false,
         error: 'Failed to save updated blog post'
       });
     }
-    
+
     res.json({
       success: true,
       post: updatedPost,
@@ -2091,29 +2172,29 @@ app.delete('/api/blog/posts/:id', authenticateToken, (req, res) => {
     const { id } = req.params;
     const posts = loadBlogPosts();
     const post = posts.find(p => p.id === id);
-    
+
     if (!post) {
       return res.status(404).json({
         success: false,
         error: 'Blog post not found'
       });
     }
-    
+
     // Delete associated image file if exists
     if (post.image) {
       deleteImageFile(post.image);
     }
-    
+
     // Delete the file
     const deleted = deleteBlogPost(id);
-    
+
     if (!deleted) {
       return res.status(500).json({
         success: false,
         error: 'Failed to delete blog post file'
       });
     }
-    
+
     res.json({
       success: true,
       post: post,
@@ -2135,14 +2216,14 @@ app.delete('/api/blog/posts/:id', authenticateToken, (req, res) => {
 app.get('/api/blog/stats', authenticateToken, (req, res) => {
   try {
     const posts = loadBlogPosts();
-    
+
     const stats = {
       total: posts.length,
       published: posts.filter(p => p.status === 'published').length,
       drafts: posts.filter(p => p.status === 'draft').length,
       totalViews: posts.reduce((sum, p) => sum + p.views, 0)
     };
-    
+
     res.json({
       success: true,
       stats
@@ -2164,11 +2245,11 @@ app.get('/sitemap.xml', (req, res) => {
   try {
     const posts = loadBlogPosts().filter(p => p.status === 'published');
     const baseUrl = process.env.FRONTEND_URL || 'https://technests.ai';
-    
+
     // Start XML
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
     xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-    
+
     // Add homepage
     xml += '  <url>\n';
     xml += `    <loc>${baseUrl}/</loc>\n`;
@@ -2176,7 +2257,7 @@ app.get('/sitemap.xml', (req, res) => {
     xml += '    <changefreq>daily</changefreq>\n';
     xml += '    <priority>1.0</priority>\n';
     xml += '  </url>\n';
-    
+
     // Add blog listing page
     xml += '  <url>\n';
     xml += `    <loc>${baseUrl}/blog</loc>\n`;
@@ -2184,7 +2265,7 @@ app.get('/sitemap.xml', (req, res) => {
     xml += '    <changefreq>daily</changefreq>\n';
     xml += '    <priority>0.9</priority>\n';
     xml += '  </url>\n';
-    
+
     // Add all published blog posts
     posts.forEach(post => {
       // Use slug if available, fallback to id for backwards compatibility
@@ -2196,7 +2277,7 @@ app.get('/sitemap.xml', (req, res) => {
       xml += '    <priority>0.8</priority>\n';
       xml += '  </url>\n';
     });
-    
+
     // Add static pages
     const staticPages = [
       { url: '/pricing', priority: '0.9' },
@@ -2209,7 +2290,7 @@ app.get('/sitemap.xml', (req, res) => {
       { url: '/refund-policy', priority: '0.5' },
       { url: '/risk-disclaimer', priority: '0.5' }
     ];
-    
+
     staticPages.forEach(page => {
       xml += '  <url>\n';
       xml += `    <loc>${baseUrl}${page.url}</loc>\n`;
@@ -2218,12 +2299,12 @@ app.get('/sitemap.xml', (req, res) => {
       xml += `    <priority>${page.priority}</priority>\n`;
       xml += '  </url>\n';
     });
-    
+
     xml += '</urlset>';
-    
+
     res.header('Content-Type', 'application/xml');
     res.send(xml);
-    
+
     console.log(`🗺️ Sitemap generated with ${posts.length + staticPages.length + 2} URLs`);
   } catch (error) {
     console.error('Error generating sitemap:', error);
@@ -2237,7 +2318,7 @@ app.get('/sitemap.xml', (req, res) => {
  */
 app.get('/robots.txt', (req, res) => {
   const baseUrl = process.env.FRONTEND_URL || 'https://technests.ai';
-  
+
   const robotsTxt = `# TechNests Robots.txt
 User-agent: *
 Allow: /
@@ -2257,10 +2338,10 @@ Sitemap: ${baseUrl}/sitemap.xml
 # Crawl-delay
 Crawl-delay: 1
 `;
-  
+
   res.header('Content-Type', 'text/plain');
   res.send(robotsTxt);
-  
+
   console.log('🤖 Robots.txt served');
 });
 
@@ -2283,7 +2364,7 @@ const loadPricingProducts = () => {
   try {
     const files = fs.readdirSync(PRICING_PRODUCTS_DIR);
     const products = [];
-    
+
     for (const file of files) {
       if (file.endsWith('.json')) {
         const filePath = path.join(PRICING_PRODUCTS_DIR, file);
@@ -2292,7 +2373,7 @@ const loadPricingProducts = () => {
         products.push(product);
       }
     }
-    
+
     return products;
   } catch (error) {
     console.error('Error loading pricing products:', error);
@@ -2305,6 +2386,10 @@ const savePricingProduct = (product) => {
     const filePath = getPricingProductFilePath(product.id);
     fs.writeFileSync(filePath, JSON.stringify(product, null, 2), 'utf8');
     console.log(`✅ Saved pricing product: ${product.id} - ${product.name}`);
+
+    // Update sitemap
+    regenerateSitemap();
+
     return true;
   } catch (error) {
     console.error('Error saving pricing product:', error);
@@ -2318,6 +2403,10 @@ const deletePricingProduct = (id) => {
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
       console.log(`🗑️ Deleted pricing product: ${id}`);
+
+      // Update sitemap
+      regenerateSitemap();
+
       return true;
     }
     return false;
@@ -2327,13 +2416,83 @@ const deletePricingProduct = (id) => {
   }
 };
 
+/**
+ * Regenerate frontend sitemap.xml with current blog posts and products
+ */
+function regenerateSitemap() {
+  try {
+    const path = require('path');
+    const fs = require('fs');
+    const frontendSitemapPath = path.join(__dirname, '..', 'frontend', 'public', 'sitemap.xml');
+
+    // Base URLs that should always be in the sitemap
+    const baseUrls = [
+      { loc: 'https://technests.ai/', priority: '1.0', changefreq: 'weekly' },
+      { loc: 'https://technests.ai/products', priority: '0.9', changefreq: 'weekly' },
+      { loc: 'https://technests.ai/pricing', priority: '0.8', changefreq: 'monthly' },
+      { loc: 'https://technests.ai/blog', priority: '0.8', changefreq: 'daily' },
+      { loc: 'https://technests.ai/contact', priority: '0.7', changefreq: 'monthly' },
+      { loc: 'https://technests.ai/ninja-trader', priority: '0.7', changefreq: 'monthly' },
+      { loc: 'https://technests.ai/refund-policy', priority: '0.3', changefreq: 'monthly' },
+      { loc: 'https://technests.ai/privacy-policy', priority: '0.3', changefreq: 'monthly' },
+      { loc: 'https://technests.ai/terms-of-service', priority: '0.3', changefreq: 'monthly' }
+    ];
+
+    const posts = loadBlogPosts().filter(p => p.status === 'published');
+    const products = loadPricingProducts().filter(p => p.status === 'active');
+    const today = new Date().toISOString().split('T')[0];
+
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+
+    // Add static pages
+    baseUrls.forEach(page => {
+      xml += '  <url>\n';
+      xml += `    <loc>${page.loc}</loc>\n`;
+      xml += `    <lastmod>${today}</lastmod>\n`;
+      xml += `    <changefreq>${page.changefreq}</changefreq>\n`;
+      xml += `    <priority>${page.priority}</priority>\n`;
+      xml += '  </url>\n';
+    });
+
+    // Add products
+    products.forEach(product => {
+      xml += '  <url>\n';
+      xml += `    <loc>https://technests.ai/products/${product.slug || product.id}</loc>\n`;
+      xml += `    <lastmod>${today}</lastmod>\n`;
+      xml += `    <changefreq>weekly</changefreq>\n`;
+      xml += `    <priority>0.7</priority>\n`;
+      xml += '  </url>\n';
+    });
+
+    // Add dynamic blog posts
+    posts.forEach(post => {
+      xml += '  <url>\n';
+      xml += `    <loc>https://technests.ai/blog/${post.slug}</loc>\n`;
+      xml += `    <lastmod>${post.date || today}</lastmod>\n`;
+      xml += `    <changefreq>monthly</changefreq>\n`;
+      xml += `    <priority>0.6</priority>\n`;
+      xml += '  </url>\n';
+    });
+
+    xml += '</urlset>';
+
+    fs.writeFileSync(frontendSitemapPath, xml, 'utf8');
+    console.log(`📡 Sitemap regenerated with ${posts.length} blog posts and ${products.length} products`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error regenerating sitemap:', error.message);
+    return false;
+  }
+};
+
 // Initialize with default products if directory is empty
 const initializePricingProducts = () => {
   const existingProducts = loadPricingProducts();
-  
+
   if (existingProducts.length === 0) {
     console.log('💰 Initializing with default pricing products...');
-    
+
     const defaultProducts = [
       {
         id: "prop-trade-planner",
@@ -2591,7 +2750,7 @@ const initializePricingProducts = () => {
         order: 15
       }
     ];
-    
+
     defaultProducts.forEach(product => savePricingProduct(product));
     console.log(`✅ Initialized ${defaultProducts.length} pricing products`);
   }
@@ -2607,25 +2766,28 @@ initializePricingProducts();
 app.get('/api/pricing/products', (req, res) => {
   try {
     let products = loadPricingProducts();
-    
+
     // Filter by status if specified
     const { status, search, page = 1, limit = 10 } = req.query;
     if (status) {
       products = products.filter(p => p.status === status);
     }
-    
+
     // Apply search filter
     if (search) {
       const searchLower = search.toLowerCase();
-      products = products.filter(p => 
+      products = products.filter(p =>
         (p.name && p.name.toLowerCase().includes(searchLower)) ||
-        (p.description && p.description.toLowerCase().includes(searchLower))
+        (p.description && p.description.toLowerCase().includes(searchLower)) ||
+        (p.tagline && p.tagline.toLowerCase().includes(searchLower)) ||
+        (p.detailedDescription && p.detailedDescription.toLowerCase().includes(searchLower)) ||
+        (p.features && Array.isArray(p.features) && p.features.some(f => f.toLowerCase().includes(searchLower)))
       );
     }
-    
+
     // Sort by order
     products.sort((a, b) => (a.order || 0) - (b.order || 0));
-    
+
     // Calculate pagination
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
@@ -2634,7 +2796,7 @@ app.get('/api/pricing/products', (req, res) => {
     const startIndex = (pageNum - 1) * limitNum;
     const endIndex = startIndex + limitNum;
     const paginatedProducts = products.slice(startIndex, endIndex);
-    
+
     res.json({
       success: true,
       products: paginatedProducts,
@@ -2665,14 +2827,14 @@ app.get('/api/pricing/products/:id', (req, res) => {
     const { id } = req.params;
     const products = loadPricingProducts();
     const product = products.find(p => p.id === id);
-    
+
     if (!product) {
       return res.status(404).json({
         success: false,
         error: 'Pricing product not found'
       });
     }
-    
+
     res.json({
       success: true,
       product
@@ -2693,7 +2855,7 @@ app.get('/api/pricing/products/:id', (req, res) => {
 app.post('/api/pricing/products', authenticateToken, (req, res) => {
   try {
     const productData = req.body;
-    
+
     // Generate ID from name if not provided
     if (!productData.id) {
       productData.id = productData.name
@@ -2701,7 +2863,7 @@ app.post('/api/pricing/products', authenticateToken, (req, res) => {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
     }
-    
+
     // Check if product with this ID already exists
     const existingProducts = loadPricingProducts();
     if (existingProducts.find(p => p.id === productData.id)) {
@@ -2710,7 +2872,7 @@ app.post('/api/pricing/products', authenticateToken, (req, res) => {
         error: 'Product with this ID already exists'
       });
     }
-    
+
     // Set defaults
     const newProduct = {
       ...productData,
@@ -2720,16 +2882,16 @@ app.post('/api/pricing/products', authenticateToken, (req, res) => {
       features: productData.features || [],
       subscriptionLink: productData.subscriptionLink || ''
     };
-    
+
     const saved = savePricingProduct(newProduct);
-    
+
     if (!saved) {
       return res.status(500).json({
         success: false,
         error: 'Failed to save pricing product'
       });
     }
-    
+
     res.status(201).json({
       success: true,
       product: newProduct,
@@ -2752,33 +2914,33 @@ app.put('/api/pricing/products/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     const products = loadPricingProducts();
     const product = products.find(p => p.id === id);
-    
+
     if (!product) {
       return res.status(404).json({
         success: false,
         error: 'Pricing product not found'
       });
     }
-    
+
     // Update product with new data
     const updatedProduct = {
       ...product,
       ...updateData,
       id // Preserve the ID
     };
-    
+
     const saved = savePricingProduct(updatedProduct);
-    
+
     if (!saved) {
       return res.status(500).json({
         success: false,
         error: 'Failed to save updated pricing product'
       });
     }
-    
+
     res.json({
       success: true,
       product: updatedProduct,
@@ -2800,26 +2962,26 @@ app.put('/api/pricing/products/:id', authenticateToken, (req, res) => {
 app.delete('/api/pricing/products/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const products = loadPricingProducts();
     const product = products.find(p => p.id === id);
-    
+
     if (!product) {
       return res.status(404).json({
         success: false,
         error: 'Pricing product not found'
       });
     }
-    
+
     const deleted = deletePricingProduct(id);
-    
+
     if (!deleted) {
       return res.status(500).json({
         success: false,
         error: 'Failed to delete pricing product file'
       });
     }
-    
+
     res.json({
       success: true,
       product: product,
@@ -2831,6 +2993,327 @@ app.delete('/api/pricing/products/:id', authenticateToken, (req, res) => {
       success: false,
       error: 'Failed to delete pricing product'
     });
+  }
+});
+
+
+// ============================================
+// PRODUCT IMAGE UPLOAD ENDPOINTS
+// ============================================
+
+// Multer configuration for product images
+const productImageStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, 'public/uploads/product-images');
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename: product-timestamp-randomstring.extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'product-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const uploadProductImage = multer({
+  storage: productImageStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB max file size
+  },
+  fileFilter: imageFileFilter
+});
+
+console.log('📸 Multer configured for product image uploads (max 5MB)');
+
+/**
+ * Upload product images (admin only)
+ * POST /api/pricing/products/:id/upload-image
+ */
+app.post(
+  '/api/pricing/products/:id/upload-image',
+  authenticateToken,
+  uploadProductImage.array('images', 10),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (req.fileValidationError) {
+        return res.status(400).json({ success: false, error: req.fileValidationError });
+      }
+
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ success: false, error: 'No image files provided' });
+      }
+
+      // Load product first
+      const products = loadPricingProducts();
+      const product = products.find(p => p.id === id);
+
+      if (!product) {
+        // Delete uploaded files if product not found
+        req.files.forEach(file => {
+          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+        });
+        return res.status(404).json({ success: false, error: 'Product not found' });
+      }
+
+      // ✅ Compress any file that exceeds 2MB (in-place, same filename)
+      try {
+        await Promise.all(
+          req.files.map(file => compressImageTo2MB(file.path, file.mimetype))
+        );
+      } catch (compressErr) {
+        // If compression fails, delete uploaded files and return error
+        req.files.forEach(file => {
+          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+        });
+        return res.status(400).json({
+          success: false,
+          error: `Image compression failed: ${compressErr.message}`
+        });
+      }
+
+      // Process all uploaded files
+      const newImageUrls = req.files.map(file => `/uploads/product-images/${file.filename}`);
+
+      if (!product.images) product.images = [];
+      product.images.push(...newImageUrls);
+
+      const saved = savePricingProduct(product);
+      if (!saved) {
+        req.files.forEach(file => {
+          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+        });
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to save product with new images'
+        });
+      }
+
+      console.log(`📸 ${req.files.length} product images uploaded (auto-compressed to <=2MB if needed) for product ${id}`);
+
+      res.json({
+        success: true,
+        images: newImageUrls,
+        message: `${req.files.length} product images uploaded successfully`,
+        product
+      });
+    } catch (error) {
+      console.error('Error uploading product images:', error);
+
+      if (req.files) {
+        req.files.forEach(file => {
+          if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+        });
+      }
+
+      res.status(500).json({ success: false, error: 'Failed to upload product images' });
+    }
+  }
+);
+
+/**
+ * Delete product image (admin only)
+ * DELETE /api/pricing/products/:id/images/:imageIndex
+ */
+app.delete('/api/pricing/products/:id/images/:imageIndex', authenticateToken, (req, res) => {
+  try {
+    const { id, imageIndex } = req.params;
+    const index = parseInt(imageIndex);
+
+    // Load product
+    const products = loadPricingProducts();
+    const product = products.find(p => p.id === id);
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: 'Product not found'
+      });
+    }
+
+    if (!product.images || !Array.isArray(product.images)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Product has no images'
+      });
+    }
+
+    if (index < 0 || index >= product.images.length) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid image index'
+      });
+    }
+
+    // Get image URL to delete
+    const imageUrl = product.images[index];
+
+    // Delete physical file
+    try {
+      const filename = imageUrl.split('/').pop();
+      const filePath = path.join(__dirname, 'public/uploads/product-images', filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`🗑️ Deleted product image file: ${filename}`);
+      }
+    } catch (error) {
+      console.error('Error deleting image file:', error);
+    }
+
+    // Remove image from array
+    product.images.splice(index, 1);
+
+    // Save updated product
+    const saved = savePricingProduct(product);
+
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save product after deleting image'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Product image deleted successfully',
+      product: product
+    });
+  } catch (error) {
+    console.error('Error deleting product image:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete product image'
+    });
+  }
+});
+
+// ============================================
+// PRODUCT FILE DOWNLOADS (SECURE)
+// ============================================
+
+// Multer configuration for product files (ZIPs)
+// ============================================
+// LEGACY PRODUCT ASSET MANAGEMENT (ADMIN)
+// ============================================
+
+/**
+ * Get all legacy product names and their file status
+ */
+app.get('/api/admin/product-assets', authenticateToken, (req, res) => {
+  try {
+    const names = loadProductNames();
+    const assets = names.map(name => {
+      const folderPath = path.resolve(__dirname, "products", name);
+      const filePath = path.join(folderPath, `${name}.zip`);
+      const exists = fs.existsSync(filePath);
+      let stats = null;
+      if (exists) {
+        const s = fs.statSync(filePath);
+        stats = {
+          size: s.size,
+          mtime: s.mtime
+        };
+      }
+      return { name, exists, stats };
+    });
+    res.json({ success: true, assets });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch product assets' });
+  }
+});
+
+/**
+ * Add a new product name
+ */
+app.post('/api/admin/product-names', authenticateToken, (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ success: false, error: 'Name required' });
+
+    const names = loadProductNames();
+    if (names.includes(name)) return res.status(400).json({ success: false, error: 'Name already exists' });
+
+    names.push(name);
+    saveProductNames(names);
+    res.json({ success: true, names });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to add product name' });
+  }
+});
+
+/**
+ * Delete a product name and its folder
+ */
+app.delete('/api/admin/product-names/:name', authenticateToken, (req, res) => {
+  try {
+    const { name } = req.params;
+    let names = loadProductNames();
+    names = names.filter(n => n !== name);
+    saveProductNames(names);
+
+    // Optionally delete the folder too
+    const folderPath = path.resolve(__dirname, "products", name);
+    if (fs.existsSync(folderPath)) {
+      // Use recursive delete for safety
+      fs.rmSync(folderPath, { recursive: true, force: true });
+    }
+
+    res.json({ success: true, names });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to delete product name' });
+  }
+});
+
+// Multer for legacy assets
+const legacyAssetStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const productName = req.params.name;
+    const uploadDir = path.join(__dirname, 'products', productName);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const productName = req.params.name;
+    cb(null, `${productName}.zip`);
+  }
+});
+
+const uploadLegacyAsset = multer({
+  storage: legacyAssetStorage,
+  limits: { fileSize: 100 * 1024 * 1024 }
+});
+
+/**
+ * Upload a zip for a specific product name
+ */
+app.post('/api/admin/product-assets/:name/upload', authenticateToken, uploadLegacyAsset.single('file'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
+    res.json({ success: true, message: 'File uploaded' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Upload failed' });
+  }
+});
+
+/**
+ * Delete a zip for a specific product name
+ */
+app.delete('/api/admin/product-assets/:name/file', authenticateToken, (req, res) => {
+  try {
+    const { name } = req.params;
+    const filePath = path.join(__dirname, 'products', name, `${name}.zip`);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    res.json({ success: true, message: 'File deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Deletion failed' });
   }
 });
 
@@ -2874,11 +3357,11 @@ app.get('/api/admin/stripe/subscribers', authenticateToken, async (req, res) => 
       }
 
       const subscriptions = await stripe.subscriptions.list(params);
-      
+
       for (const sub of subscriptions.data) {
         const customer = sub.customer;
         const price = sub.items?.data?.[0]?.price;
-        
+
         // Fetch product details separately if product is just an ID string
         let productName = null;
         if (price?.product) {
@@ -2906,18 +3389,18 @@ app.get('/api/admin/stripe/subscribers', authenticateToken, async (req, res) => 
           plan_amount: price?.unit_amount ? (price.unit_amount / 100).toFixed(2) : null,
           currency: price?.currency || 'usd',
           billing_period: price?.recurring?.interval || 'month',
-          subscription_start_date: sub.start_date 
-            ? new Date(sub.start_date * 1000).toISOString() 
+          subscription_start_date: sub.start_date
+            ? new Date(sub.start_date * 1000).toISOString()
             : null,
-          current_period_start: sub.current_period_start 
-            ? new Date(sub.current_period_start * 1000).toISOString() 
+          current_period_start: sub.current_period_start
+            ? new Date(sub.current_period_start * 1000).toISOString()
             : null,
-          current_period_end: sub.current_period_end 
-            ? new Date(sub.current_period_end * 1000).toISOString() 
+          current_period_end: sub.current_period_end
+            ? new Date(sub.current_period_end * 1000).toISOString()
             : null,
           cancel_at_period_end: sub.cancel_at_period_end,
-          canceled_at: sub.canceled_at 
-            ? new Date(sub.canceled_at * 1000).toISOString() 
+          canceled_at: sub.canceled_at
+            ? new Date(sub.canceled_at * 1000).toISOString()
             : null,
         });
       }
@@ -2977,19 +3460,19 @@ app.get('/api/admin/stripe/subscribers', authenticateToken, async (req, res) => 
 app.get('/api/admin/subscriptions/permanent', authenticateToken, (req, res) => {
   try {
     let subscriptions = loadPermanentSubscriptions();
-    
+
     // Apply search filter if provided
     const searchQuery = req.query.search;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      subscriptions = subscriptions.filter(sub => 
+      subscriptions = subscriptions.filter(sub =>
         sub.email.toLowerCase().includes(query) ||
         sub.planNickname.toLowerCase().includes(query) ||
         (sub.notes && sub.notes.toLowerCase().includes(query)) ||
         sub.addedBy.toLowerCase().includes(query)
       );
     }
-    
+
     res.json({
       success: true,
       subscriptions,
@@ -3011,19 +3494,19 @@ app.get('/api/admin/subscriptions/permanent', authenticateToken, (req, res) => {
 app.get('/api/admin/subscriptions/temporary', authenticateToken, (req, res) => {
   try {
     let subscriptions = loadTemporarySubscriptions();
-    
+
     // Apply search filter if provided
     const searchQuery = req.query.search;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      subscriptions = subscriptions.filter(sub => 
+      subscriptions = subscriptions.filter(sub =>
         sub.email.toLowerCase().includes(query) ||
         sub.planNickname.toLowerCase().includes(query) ||
         (sub.notes && sub.notes.toLowerCase().includes(query)) ||
         sub.addedBy.toLowerCase().includes(query)
       );
     }
-    
+
     // Add expiration status to each subscription
     const now = new Date();
     const subscriptionsWithStatus = subscriptions.map(sub => ({
@@ -3031,7 +3514,7 @@ app.get('/api/admin/subscriptions/temporary', authenticateToken, (req, res) => {
       isExpired: new Date(sub.endDate) < now,
       isActive: new Date(sub.startDate) <= now && new Date(sub.endDate) >= now
     }));
-    
+
     res.json({
       success: true,
       subscriptions: subscriptionsWithStatus,
@@ -3053,16 +3536,16 @@ app.get('/api/admin/subscriptions/temporary', authenticateToken, (req, res) => {
 app.post('/api/admin/subscriptions/permanent', authenticateToken, (req, res) => {
   try {
     const { email, planNickname, notes } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({
         success: false,
         error: 'Email is required'
       });
     }
-    
+
     const subscriptions = loadPermanentSubscriptions();
-    
+
     // Check if subscription already exists
     const exists = subscriptions.find(s => s.email.toLowerCase() === email.toLowerCase());
     if (exists) {
@@ -3071,13 +3554,13 @@ app.post('/api/admin/subscriptions/permanent', authenticateToken, (req, res) => 
         error: 'Permanent subscription already exists for this email'
       });
     }
-    
+
     // Generate new ID
     const maxId = subscriptions.reduce((max, s) => {
       const num = parseInt(s.id.replace('perm_', ''));
       return num > max ? num : max;
     }, 0);
-    
+
     const newSubscription = {
       id: `perm_${String(maxId + 1).padStart(3, '0')}`,
       email: email.toLowerCase(),
@@ -3087,9 +3570,9 @@ app.post('/api/admin/subscriptions/permanent', authenticateToken, (req, res) => 
       notes: notes || '',
       status: 'active'
     };
-    
+
     subscriptions.push(newSubscription);
-    
+
     const saved = savePermanentSubscriptions(subscriptions);
     if (!saved) {
       return res.status(500).json({
@@ -3097,12 +3580,12 @@ app.post('/api/admin/subscriptions/permanent', authenticateToken, (req, res) => 
         error: 'Failed to save permanent subscription'
       });
     }
-    
+
     // Reload whitelist
     permanentWhitelist = loadPermanentSubscriptions().filter(s => s.status === 'active').map(s => s.email);
-    
+
     console.log(`✅ Added permanent subscription: ${email} by ${req.user.username}`);
-    
+
     res.status(201).json({
       success: true,
       subscription: newSubscription,
@@ -3124,55 +3607,55 @@ app.post('/api/admin/subscriptions/permanent', authenticateToken, (req, res) => 
 app.post('/api/admin/subscriptions/temporary', authenticateToken, (req, res) => {
   try {
     const { email, planNickname, startDate, endDate, notes } = req.body;
-    
+
     if (!email || !startDate || !endDate) {
       return res.status(400).json({
         success: false,
         error: 'Email, startDate, and endDate are required'
       });
     }
-    
+
     // Validate dates
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
+
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       return res.status(400).json({
         success: false,
         error: 'Invalid date format'
       });
     }
-    
+
     if (end <= start) {
       return res.status(400).json({
         success: false,
         error: 'End date must be after start date'
       });
     }
-    
+
     const subscriptions = loadTemporarySubscriptions();
-    
+
     // Check if active subscription already exists
     const now = new Date();
-    const exists = subscriptions.find(s => 
-      s.email.toLowerCase() === email.toLowerCase() && 
+    const exists = subscriptions.find(s =>
+      s.email.toLowerCase() === email.toLowerCase() &&
       s.status === 'active' &&
       new Date(s.endDate) > now
     );
-    
+
     if (exists) {
       return res.status(400).json({
         success: false,
         error: 'Active temporary subscription already exists for this email'
       });
     }
-    
+
     // Generate new ID
     const maxId = subscriptions.reduce((max, s) => {
       const num = parseInt(s.id.replace('temp_', ''));
       return num > max ? num : max;
     }, 0);
-    
+
     const newSubscription = {
       id: `temp_${String(maxId + 1).padStart(3, '0')}`,
       email: email.toLowerCase(),
@@ -3184,9 +3667,9 @@ app.post('/api/admin/subscriptions/temporary', authenticateToken, (req, res) => 
       notes: notes || '',
       status: 'active'
     };
-    
+
     subscriptions.push(newSubscription);
-    
+
     const saved = saveTemporarySubscriptions(subscriptions);
     if (!saved) {
       return res.status(500).json({
@@ -3194,7 +3677,7 @@ app.post('/api/admin/subscriptions/temporary', authenticateToken, (req, res) => 
         error: 'Failed to save temporary subscription'
       });
     }
-    
+
     // Reload whitelist
     temporaryWhitelist = loadTemporarySubscriptions().filter(s => s.status === 'active').map(s => ({
       email: s.email,
@@ -3202,9 +3685,9 @@ app.post('/api/admin/subscriptions/temporary', authenticateToken, (req, res) => 
       end_date: s.endDate,
       planNickname: s.planNickname
     }));
-    
+
     console.log(`✅ Added temporary subscription: ${email} by ${req.user.username}`);
-    
+
     res.status(201).json({
       success: true,
       subscription: newSubscription,
@@ -3227,17 +3710,17 @@ app.put('/api/admin/subscriptions/permanent/:id', authenticateToken, (req, res) 
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     const subscriptions = loadPermanentSubscriptions();
     const index = subscriptions.findIndex(s => s.id === id);
-    
+
     if (index === -1) {
       return res.status(404).json({
         success: false,
         error: 'Permanent subscription not found'
       });
     }
-    
+
     // Update subscription
     subscriptions[index] = {
       ...subscriptions[index],
@@ -3245,7 +3728,7 @@ app.put('/api/admin/subscriptions/permanent/:id', authenticateToken, (req, res) 
       id, // Preserve ID
       email: updateData.email ? updateData.email.toLowerCase() : subscriptions[index].email
     };
-    
+
     const saved = savePermanentSubscriptions(subscriptions);
     if (!saved) {
       return res.status(500).json({
@@ -3253,12 +3736,12 @@ app.put('/api/admin/subscriptions/permanent/:id', authenticateToken, (req, res) 
         error: 'Failed to save updated subscription'
       });
     }
-    
+
     // Reload whitelist
     permanentWhitelist = loadPermanentSubscriptions().filter(s => s.status === 'active').map(s => s.email);
-    
+
     console.log(`✅ Updated permanent subscription: ${id} by ${req.user.username}`);
-    
+
     res.json({
       success: true,
       subscription: subscriptions[index],
@@ -3281,22 +3764,22 @@ app.put('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, res) 
   try {
     const { id } = req.params;
     const updateData = req.body;
-    
+
     const subscriptions = loadTemporarySubscriptions();
     const index = subscriptions.findIndex(s => s.id === id);
-    
+
     if (index === -1) {
       return res.status(404).json({
         success: false,
         error: 'Temporary subscription not found'
       });
     }
-    
+
     // Validate dates if provided
     if (updateData.startDate && updateData.endDate) {
       const start = new Date(updateData.startDate);
       const end = new Date(updateData.endDate);
-      
+
       if (end <= start) {
         return res.status(400).json({
           success: false,
@@ -3304,7 +3787,7 @@ app.put('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, res) 
         });
       }
     }
-    
+
     // Update subscription
     subscriptions[index] = {
       ...subscriptions[index],
@@ -3312,7 +3795,7 @@ app.put('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, res) 
       id, // Preserve ID
       email: updateData.email ? updateData.email.toLowerCase() : subscriptions[index].email
     };
-    
+
     const saved = saveTemporarySubscriptions(subscriptions);
     if (!saved) {
       return res.status(500).json({
@@ -3320,7 +3803,7 @@ app.put('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, res) 
         error: 'Failed to save updated subscription'
       });
     }
-    
+
     // Reload whitelist
     temporaryWhitelist = loadTemporarySubscriptions().filter(s => s.status === 'active').map(s => ({
       email: s.email,
@@ -3328,9 +3811,9 @@ app.put('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, res) 
       end_date: s.endDate,
       planNickname: s.planNickname
     }));
-    
+
     console.log(`✅ Updated temporary subscription: ${id} by ${req.user.username}`);
-    
+
     res.json({
       success: true,
       subscription: subscriptions[index],
@@ -3352,20 +3835,20 @@ app.put('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, res) 
 app.delete('/api/admin/subscriptions/permanent/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const subscriptions = loadPermanentSubscriptions();
     const index = subscriptions.findIndex(s => s.id === id);
-    
+
     if (index === -1) {
       return res.status(404).json({
         success: false,
         error: 'Permanent subscription not found'
       });
     }
-    
+
     const deletedSubscription = subscriptions[index];
     subscriptions.splice(index, 1);
-    
+
     const saved = savePermanentSubscriptions(subscriptions);
     if (!saved) {
       return res.status(500).json({
@@ -3373,12 +3856,12 @@ app.delete('/api/admin/subscriptions/permanent/:id', authenticateToken, (req, re
         error: 'Failed to delete subscription'
       });
     }
-    
+
     // Reload whitelist
     permanentWhitelist = loadPermanentSubscriptions().filter(s => s.status === 'active').map(s => s.email);
-    
+
     console.log(`🗑️ Deleted permanent subscription: ${id} by ${req.user.username}`);
-    
+
     res.json({
       success: true,
       subscription: deletedSubscription,
@@ -3400,20 +3883,20 @@ app.delete('/api/admin/subscriptions/permanent/:id', authenticateToken, (req, re
 app.delete('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const subscriptions = loadTemporarySubscriptions();
     const index = subscriptions.findIndex(s => s.id === id);
-    
+
     if (index === -1) {
       return res.status(404).json({
         success: false,
         error: 'Temporary subscription not found'
       });
     }
-    
+
     const deletedSubscription = subscriptions[index];
     subscriptions.splice(index, 1);
-    
+
     const saved = saveTemporarySubscriptions(subscriptions);
     if (!saved) {
       return res.status(500).json({
@@ -3421,7 +3904,7 @@ app.delete('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, re
         error: 'Failed to delete subscription'
       });
     }
-    
+
     // Reload whitelist
     temporaryWhitelist = loadTemporarySubscriptions().filter(s => s.status === 'active').map(s => ({
       email: s.email,
@@ -3429,9 +3912,9 @@ app.delete('/api/admin/subscriptions/temporary/:id', authenticateToken, (req, re
       end_date: s.endDate,
       planNickname: s.planNickname
     }));
-    
+
     console.log(`🗑️ Deleted temporary subscription: ${id} by ${req.user.username}`);
-    
+
     res.json({
       success: true,
       subscription: deletedSubscription,
@@ -3454,23 +3937,23 @@ app.get('/api/admin/subscriptions/stats', authenticateToken, (req, res) => {
   try {
     const permanentSubs = loadPermanentSubscriptions();
     const temporarySubs = loadTemporarySubscriptions();
-    
+
     const now = new Date();
-    
-    const activeTemp = temporarySubs.filter(s => 
-      s.status === 'active' && 
-      new Date(s.startDate) <= now && 
+
+    const activeTemp = temporarySubs.filter(s =>
+      s.status === 'active' &&
+      new Date(s.startDate) <= now &&
       new Date(s.endDate) >= now
     );
-    
-    const expiredTemp = temporarySubs.filter(s => 
+
+    const expiredTemp = temporarySubs.filter(s =>
       new Date(s.endDate) < now
     );
-    
-    const upcomingTemp = temporarySubs.filter(s => 
+
+    const upcomingTemp = temporarySubs.filter(s =>
       new Date(s.startDate) > now
     );
-    
+
     const stats = {
       permanent: {
         total: permanentSubs.length,
@@ -3485,7 +3968,7 @@ app.get('/api/admin/subscriptions/stats', authenticateToken, (req, res) => {
       },
       totalActiveSubscriptions: permanentSubs.filter(s => s.status === 'active').length + activeTemp.length
     };
-    
+
     res.json({
       success: true,
       stats
@@ -3498,6 +3981,198 @@ app.get('/api/admin/subscriptions/stats', authenticateToken, (req, res) => {
     });
   }
 });
+
+// ==== CONTACT FORM MESSAGES ====
+const MESSAGES_FILE = path.join(__dirname, 'messages.json');
+
+const loadMessages = () => {
+  try {
+    if (!fs.existsSync(MESSAGES_FILE)) {
+      return [];
+    }
+    const data = fs.readFileSync(MESSAGES_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Error loading messages:', error);
+    return [];
+  }
+};
+
+const saveMessages = (messages) => {
+  try {
+    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error saving messages:', error);
+    return false;
+  }
+};
+
+/**
+ * Submit contact form
+ * POST /api/contact
+ */
+app.post('/api/contact', async (req, res) => {
+  try {
+    const { name, email, subject, message } = req.body;
+
+    if (!name || !email || !message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name, email, and message are required'
+      });
+    }
+
+    const newMessage = {
+      id: Date.now().toString(),
+      name,
+      email,
+      subject: subject || 'No Subject',
+      message,
+      date: new Date().toISOString(),
+      read: false
+    };
+
+    // Save to file
+    const messages = loadMessages();
+    messages.unshift(newMessage); // Add to beginning
+    saveMessages(messages);
+
+    // Send email to admin
+    try {
+      await sendEmail({
+        to: 'admin@technests.ai',
+        subject: `New Contact Form Submission: ${subject}`,
+        text: `Name: ${name}\nEmail: ${email}\nSubject: ${subject}\nMessage:\n${message}`,
+        html: `
+          <h2>New Contact Form Submission</h2>
+          <p><strong>Name:</strong> ${name}</p>
+          <p><strong>Email:</strong> ${email}</p>
+          <p><strong>Subject:</strong> ${subject}</p>
+          <p><strong>Message:</strong></p>
+          <p>${message.replace(/\n/g, '<br>')}</p>
+        `
+      });
+    } catch (emailError) {
+      console.error('Error sending contact email:', emailError);
+      // Don't fail the request, just log the error
+    }
+
+    res.json({
+      success: true,
+      message: 'Message sent successfully'
+    });
+  } catch (error) {
+    console.error('Error submitting contact form:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send message'
+    });
+  }
+});
+
+/**
+ * Get all messages (admin only)
+ * GET /api/admin/messages
+ */
+app.get('/api/admin/messages', authenticateToken, (req, res) => {
+  try {
+    const messages = loadMessages();
+    res.json({
+      success: true,
+      messages
+    });
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch messages'
+    });
+  }
+});
+
+/**
+ * Mark a message as read (admin only)
+ * PUT /api/admin/messages/:id/read
+ */
+app.put('/api/admin/messages/:id/read', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    const messages = loadMessages();
+    const messageIndex = messages.findIndex(m => m.id === id);
+
+    if (messageIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: 'Message not found'
+      });
+    }
+
+    messages[messageIndex].read = true;
+    saveMessages(messages);
+
+    res.json({
+      success: true,
+      message: 'Message marked as read'
+    });
+  } catch (error) {
+    console.error('Error marking message as read:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to mark message as read'
+    });
+  }
+});
+
+/**
+ * Delete a message (admin only)
+ * DELETE /api/admin/messages/:id
+ */
+app.delete('/api/admin/messages/:id', authenticateToken, (req, res) => {
+  try {
+    const { id } = req.params;
+    const messages = loadMessages();
+    const newMessages = messages.filter(m => m.id !== id);
+
+    if (messages.length === newMessages.length) {
+      return res.status(404).json({
+        success: false,
+        error: 'Message not found'
+      });
+    }
+
+    saveMessages(newMessages);
+
+    res.json({
+      success: true,
+      message: 'Message deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting message:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete message'
+    });
+  }
+});
+
+// ==== INITIALIZATION ====
+
+// Initialize sample data and migrations on startup
+try {
+  console.log('🏁 Starting backend initializations...');
+  initializePricingProducts();
+  initializeSamplePosts();
+  migratePostsWithSlugs();
+
+  // Force initial sitemap regeneration
+  // (Requires both posts and products to be initialized)
+  if (typeof regenerateSitemap === 'function') {
+    regenerateSitemap();
+  }
+} catch (initError) {
+  console.error('❌ Error during startup initialization:', initError.message);
+}
 
 // ==== EXPORT APP ====
 module.exports = app;

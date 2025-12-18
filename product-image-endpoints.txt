@@ -1,0 +1,188 @@
+
+// ============================================
+// PRODUCT IMAGE UPLOAD ENDPOINTS
+// ============================================
+
+// Multer configuration for product images
+const productImageStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, 'public/uploads/product-images');
+    // Ensure directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename: product-timestamp-randomstring.extension
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'product-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const uploadProductImage = multer({
+  storage: productImageStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB max file size
+  },
+  fileFilter: imageFileFilter
+});
+
+console.log('📸 Multer configured for product image uploads (max 5MB)');
+
+/**
+ * Upload product image (admin only)
+ * POST /api/pricing/products/:id/upload-image
+ */
+app.post('/api/pricing/products/:id/upload-image', authenticateToken, uploadProductImage.single('image'), (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check for file validation errors
+    if (req.fileValidationError) {
+      return res.status(400).json({
+        success: false,
+        error: req.fileValidationError
+      });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No image file provided'
+      });
+    }
+    
+    // Load product
+    const products = loadPricingProducts();
+    const product = products.find(p => p.id === id);
+    
+    if (!product) {
+      // Delete uploaded file if product not found
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({
+        success: false,
+        error: 'Product not found'
+      });
+    }
+    
+    // Generate image URL
+    const imageUrl = `/uploads/product-images/${req.file.filename}`;
+    
+    // Add image to product's images array
+    if (!product.images) {
+      product.images = [];
+    }
+    product.images.push(imageUrl);
+    
+    // Save updated product
+    const saved = savePricingProduct(product);
+    
+    if (!saved) {
+      // Delete uploaded file if save failed
+      fs.unlinkSync(req.file.path);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save product with new image'
+      });
+    }
+    
+    console.log(`📸 Product image uploaded: ${req.file.filename} for product ${id}`);
+    
+    res.json({
+      success: true,
+      imageUrl: imageUrl,
+      filename: req.file.filename,
+      size: req.file.size,
+      message: 'Product image uploaded successfully',
+      product: product
+    });
+  } catch (error) {
+    console.error('Error uploading product image:', error);
+    // Clean up uploaded file on error
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({
+      success: false,
+      error: 'Failed to upload product image'
+    });
+  }
+});
+
+/**
+ * Delete product image (admin only)
+ * DELETE /api/pricing/products/:id/images/:imageIndex
+ */
+app.delete('/api/pricing/products/:id/images/:imageIndex', authenticateToken, (req, res) => {
+  try {
+    const { id, imageIndex } = req.params;
+    const index = parseInt(imageIndex);
+    
+    // Load product
+    const products = loadPricingProducts();
+    const product = products.find(p => p.id === id);
+    
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: 'Product not found'
+      });
+    }
+    
+    if (!product.images || !Array.isArray(product.images)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Product has no images'
+      });
+    }
+    
+    if (index < 0 || index >= product.images.length) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid image index'
+      });
+    }
+    
+    // Get image URL to delete
+    const imageUrl = product.images[index];
+    
+    // Delete physical file
+    try {
+      const filename = imageUrl.split('/').pop();
+      const filePath = path.join(__dirname, 'public/uploads/product-images', filename);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`🗑️ Deleted product image file: ${filename}`);
+      }
+    } catch (error) {
+      console.error('Error deleting image file:', error);
+    }
+    
+    // Remove image from array
+    product.images.splice(index, 1);
+    
+    // Save updated product
+    const saved = savePricingProduct(product);
+    
+    if (!saved) {
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to save product after deleting image'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Product image deleted successfully',
+      product: product
+    });
+  } catch (error) {
+    console.error('Error deleting product image:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete product image'
+    });
+  }
+});
+

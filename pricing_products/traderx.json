@@ -1,17 +1,48 @@
 {
   "id": "traderx",
+  "slug": "traderx",
   "name": "TradeRx",
+  "tagline": "The Executor",
   "price": 69.99,
   "billingPeriod": "month",
-  "description": "Advanced trading analytics and insights",
+  "description": "Advanced trading analytics and insights for prop traders",
+  "heroTitle": "Complete prop trading solution with Dr. Markets planning built-in",
+  "heroDescription": "TradeRx is your complete NinjaTrader solution for prop traders. With Dr. Markets planning and intelligence already included, you get structured daily plans, human-like execution, and transparent reporting—all in one system.",
+  "detailedDescription": "js ch sahdhc j",
   "features": [
     "Real-time Analytics",
     "Trade Analysis",
     "Pattern Recognition",
-    "Custom Alerts"
+    "Custom Alerts",
+    "Daily Plan Table",
+    "Event Window Controls"
   ],
-  "subscriptionLink": "https://buy.stripe.com/00w3cngGB4gFevk2hl9Zm0B?locale=en&__embed_source=buy_btn_1SQO1i04dzdw9mwCE1nQtQj3",
+  "subscriptionLink": "https://buy.stripe.com/00w3cngGB4gFevk2hl9Zm0B",
   "featured": true,
   "status": "active",
-  "order": 0
+  "order": 0,
+  "images": [
+    "/uploads/product-images/product-1766037168831-575726759.png"
+  ],
+  "color": "accent",
+  "icon": "zap",
+  "pdpSections": {
+    "gallery": true,
+    "zoom": true,
+    "breadcrumbs": true,
+    "title": true,
+    "rating": true,
+    "price": true,
+    "features": true,
+    "buyBox": true,
+    "quantity": false,
+    "addToCart": true,
+    "buyNow": true,
+    "shipping": true,
+    "aboutItem": true,
+    "description": false,
+    "specifications": true,
+    "reviews": true
+  },
+  "coachingEnabled": false
 }
