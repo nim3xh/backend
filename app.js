@@ -33,7 +33,7 @@ async function compressImageTo2MB(filePath, mimeType) {
   // Decide output format based on input (keep same extension to preserve URL)
   const ext = path.extname(filePath).toLowerCase();
   const isJpeg = mimeType === 'image/jpeg' || ext === '.jpg' || ext === '.jpeg';
-  const isPng  = mimeType === 'image/png'  || ext === '.png';
+  const isPng = mimeType === 'image/png' || ext === '.png';
   const isWebp = mimeType === 'image/webp' || ext === '.webp';
 
   // If format is unexpected, just try jpeg-like compression via sharp defaults
@@ -2275,6 +2275,27 @@ app.get('/sitemap.xml', (req, res) => {
       xml += `    <lastmod>${post.updatedAt || post.date}</lastmod>\n`;
       xml += '    <changefreq>weekly</changefreq>\n';
       xml += '    <priority>0.8</priority>\n';
+      xml += '  </url>\n';
+    });
+
+    // Add active products
+    // We need to handle the case where loadPricingProducts is defined later in the file
+    // by ensuring we are in the request callback where the module is fully loaded
+    const products = (() => {
+      try {
+        return loadPricingProducts().filter(p => p.status === 'active');
+      } catch (e) {
+        console.warn('Could not load pricing products for sitemap:', e);
+        return [];
+      }
+    })();
+
+    products.forEach(product => {
+      xml += '  <url>\n';
+      xml += `    <loc>${baseUrl}/products/${product.slug || product.id}</loc>\n`;
+      xml += `    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>\n`;
+      xml += `    <changefreq>weekly</changefreq>\n`;
+      xml += `    <priority>0.7</priority>\n`;
       xml += '  </url>\n';
     });
 
