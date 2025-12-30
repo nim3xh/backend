@@ -9,7 +9,7 @@
     "Weekly Check-ins",
     "Email Support"
   ],
-  "subscriptionLink": "",
+  "subscriptionLink": "https://buy.stripe.com/00w3cngGB4gFevk2hl9Zm0B?locale=en&__embed_source=buy_btn_1SQO1i04dzdw9mwCE1nQtQj3",
   "featured": true,
   "status": "active",
   "order": 0,
@@ -17,5 +17,10 @@
     "/uploads/product-images/product-1765968839889-775722710.jpg"
   ],
   "color": "accent",
-  "coachingEnabled": true
+  "coachingEnabled": true,
+  "yearlyPrice": 3350,
+  "yearlySubscriptionLink": "https://buy.stripe.com/3cI5kv0HD8wVfzo1dh9Zm0x",
+  "subscriptionStripeLink": "https://buy.stripe.com/7sYbITbmhbJ786W3lp9Zm0n",
+  "trialPrice": 0,
+  "trialStripeLink": ""
 }

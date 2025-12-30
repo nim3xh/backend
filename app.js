@@ -307,6 +307,248 @@ function deleteImageFile(imageUrl) {
   }
 }
 
+// ==== MULTER CONFIGURATION FOR USER FEEDBACK ====
+const feedbackStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const feedbackDir = path.join(__dirname, 'public/uploads/user-feedback');
+    if (!fs.existsSync(feedbackDir)) {
+      fs.mkdirSync(feedbackDir, { recursive: true });
+    }
+    cb(null, feedbackDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'feedback-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const uploadFeedback = multer({
+  storage: feedbackStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    // Accept HTML files only (or maybe images too if they screenshot? User said "local .html")
+    if (file.mimetype === 'text/html' || path.extname(file.originalname) === '.html' || path.extname(file.originalname) === '.htm') {
+      cb(null, true);
+    } else {
+      cb(null, false);
+    }
+  }
+});
+
+// Helper to check subscription status
+async function checkSubscriptionStatus(emailInput) {
+  const email = (emailInput || "").trim().toLowerCase();
+  const currentTime = getCurrentTimeInEST();
+
+  if (!email) {
+    return { isValid: false, status: "error", message: "Email is required", current_time: currentTime };
+  }
+
+  // 1. Check permanent whitelist
+  if (permanentWhitelist.includes(email)) {
+    return {
+      isValid: true,
+      source: "permanent_whitelist",
+      email,
+      status: "active",
+      planNickname: "all",
+      current_time: currentTime,
+    };
+  }
+
+  // 2. Check temporary whitelist
+  const now = new Date();
+  const tempWhitelistEntry = temporaryWhitelist.find(
+    (entry) => entry.email === email
+  );
+
+  if (tempWhitelistEntry) {
+    const startDate = new Date(tempWhitelistEntry.start_date);
+    const endDate = new Date(tempWhitelistEntry.end_date);
+
+    if (now >= startDate && now <= endDate) {
+      return {
+        isValid: true,
+        source: "temporary_whitelist",
+        email,
+        status: "active",
+        subscription_start_date: tempWhitelistEntry.start_date,
+        current_period_end: tempWhitelistEntry.end_date,
+        planNickname: tempWhitelistEntry.planNickname || "all",
+        current_time: currentTime,
+      };
+    } else {
+      return {
+        isValid: false,
+        source: "temporary_whitelist_expired",
+        email,
+        status: "inactive",
+        message: "Temporary subscription expired",
+        current_time: currentTime,
+      };
+    }
+  }
+
+  // 3. Look up Stripe customer by email
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return { isValid: false, status: "error", message: "Stripe not configured", current_time: currentTime };
+  }
+
+  try {
+    const customers = await stripe.customers.list({ email, limit: 1 });
+
+    if (!customers.data || customers.data.length === 0) {
+      return {
+        isValid: false,
+        email,
+        status: "no_customer",
+        message: "Subscription not found",
+        current_time: currentTime,
+      };
+    }
+
+    const customer = customers.data[0];
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customer.id,
+      status: "all",
+      limit: 10,
+    });
+
+    if (!subscriptions.data || subscriptions.data.length === 0) {
+      return {
+        isValid: false,
+        email,
+        customer_id: customer.id,
+        status: "no_subscriptions",
+        message: "Subscription not found",
+        current_time: currentTime,
+      };
+    }
+
+    const preferred = subscriptions.data.find(
+      (sub) => sub.status === "active" || sub.status === "trialing"
+    ) || subscriptions.data[0];
+
+    const isActive = preferred.status === "active" || preferred.status === "trialing";
+    const price = preferred.items?.data?.[0]?.price;
+    const productId = price?.product;
+
+    let productName = null;
+    if (productId) {
+      try {
+        const product = await stripe.products.retrieve(productId);
+        productName = product.name;
+      } catch {
+        productName = null;
+      }
+    }
+
+    return {
+      isValid: isActive,
+      source: "stripe",
+      email,
+      customer_id: customer.id,
+      subscription_id: preferred.id,
+      status: preferred.status,
+      subscription_start_date: preferred.start_date
+        ? new Date(preferred.start_date * 1000).toISOString()
+        : null,
+      current_period_end: preferred.current_period_end
+        ? new Date(preferred.current_period_end * 1000).toISOString()
+        : null,
+      plan_amount: price?.unit_amount ? (price.unit_amount / 100).toFixed(2) : null,
+      planNickname: productName || "all",
+      current_time: currentTime,
+    };
+
+  } catch (err) {
+    console.error("Stripe check error:", err);
+    return { isValid: false, status: "error", message: err.message, current_time: currentTime };
+  }
+}
+
+/*
+app.post('/api/upload-feedback', uploadFeedback.single('file'), async (req, res) => {
+  const file = req.file;
+  const email = req.body.email; // Expect email in body
+
+  // Helper to cleanup file if validation fails
+  const cleanup = () => {
+    if (file && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+  };
+
+  if (!file) {
+    return res.status(400).json({ success: false, message: 'No file uploaded or invalid file type (HTML only).' });
+  }
+
+  if (!email) {
+    cleanup();
+    return res.status(400).json({ success: false, message: 'Email is required for verification.' });
+  }
+
+  try {
+    const subStatus = await checkSubscriptionStatus(email);
+
+    if (!subStatus.isValid) {
+      cleanup();
+      return res.status(403).json({
+        success: false,
+        message: 'Subscription not found',
+        details: subStatus.message || subStatus.status
+      });
+    }
+
+    // Success
+    res.json({
+      success: true,
+      message: 'Feedback uploaded successfully',
+      filename: file.filename,
+      path: `/uploads/user-feedback/${file.filename}`,
+      uploader: email
+    });
+
+  } catch (error) {
+    cleanup();
+    console.error('Upload validation error:', error);
+    res.status(500).json({ success: false, message: 'Server error during validation.' });
+  }
+});
+*/
+
+/**
+ * Get list of uploaded feedbacks
+ * GET /api/feedbacks
+ */
+/*
+app.get('/api/feedbacks', (req, res) => {
+  const feedbackDir = path.join(__dirname, 'public/uploads/user-feedback');
+
+  if (!fs.existsSync(feedbackDir)) {
+    return res.json({ success: true, feedbacks: [] });
+  }
+
+  try {
+    const files = fs.readdirSync(feedbackDir);
+    const feedbacks = files
+      .filter(file => file.endsWith('.html') || file.endsWith('.htm'))
+      .map(file => ({
+        filename: file,
+        url: `/uploads/user-feedback/${file}`, // Relative URL is safer if on same domain, or helper needed
+        date: fs.statSync(path.join(feedbackDir, file)).birthtime
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date)); // Newest first
+
+    res.json({ success: true, feedbacks });
+  } catch (err) {
+    console.error('Error reading feedback directory:', err);
+    res.status(500).json({ success: false, error: 'Failed to list feedbacks' });
+  }
+});
+*/
+
+
 // ==== STRIPE CLIENT ====
 if (!process.env.STRIPE_SECRET_KEY) {
   console.warn("⚠ STRIPE_SECRET_KEY is not set in .env");
@@ -429,169 +671,26 @@ app.get("/current-time", (req, res) => {
 // --- 2) SUBSCRIPTION STATUS (EST time in response) ---
 app.get("/stripe/subscription-status", async (req, res) => {
   try {
-    const email = (req.query.email || "").trim().toLowerCase();
+    const email = req.query.email;
+    const result = await checkSubscriptionStatus(email);
 
-    if (!email) {
-      return res.status(400).json({
-        error: "Email query parameter is required",
-      });
+    if (result.status === "error" && result.message === "Email is required") {
+      return res.status(400).json({ error: result.message });
     }
 
-    const currentTime = getCurrentTimeInEST();
-
-    // 2.1. Check permanent whitelist
-    if (permanentWhitelist.includes(email)) {
-      return res.json({
-        source: "permanent_whitelist",
-        email,
-        customer_id: null,
-        subscription_id: null,
-        status: "active",
-        subscription_start_date: null,
-        current_period_start: null,
-        current_period_end: null,
-        plan_id: null,
-        plan_amount: null,
-        currency: null,
-        planNickname: "all",
-        current_time: currentTime,
-      });
+    if (result.status === "no_customer" || result.status === "no_subscriptions") {
+      return res.status(404).json(result);
     }
 
-    // 2.2. Check temporary whitelist
-    const now = new Date();
-    const tempWhitelistEntry = temporaryWhitelist.find(
-      (entry) => entry.email === email
-    );
-
-    if (tempWhitelistEntry) {
-      const startDate = new Date(tempWhitelistEntry.start_date);
-      const endDate = new Date(tempWhitelistEntry.end_date);
-
-      if (now >= startDate && now <= endDate) {
-        return res.json({
-          source: "temporary_whitelist",
-          email,
-          customer_id: null,
-          subscription_id: null,
-          status: "active",
-          subscription_start_date: tempWhitelistEntry.start_date,
-          current_period_start: tempWhitelistEntry.start_date,
-          current_period_end: tempWhitelistEntry.end_date,
-          plan_id: null,
-          plan_amount: null,
-          currency: null,
-          planNickname: tempWhitelistEntry.planNickname || "all",
-          current_time: currentTime,
-        });
-      } else {
-        return res.status(403).json({
-          source: "temporary_whitelist_expired",
-          email,
-          customer_id: null,
-          subscription_id: null,
-          status: "inactive",
-          subscription_start_date: tempWhitelistEntry.start_date,
-          current_period_start: tempWhitelistEntry.start_date,
-          current_period_end: tempWhitelistEntry.end_date,
-          plan_id: null,
-          plan_amount: null,
-          currency: null,
-          planNickname: tempWhitelistEntry.planNickname || "all",
-          current_time: currentTime,
-        });
-      }
+    if (result.source === "temporary_whitelist_expired") {
+      return res.status(403).json(result);
     }
 
-    // 2.3. Look up Stripe customer by email
-    if (!process.env.STRIPE_SECRET_KEY) {
-      return res.status(500).json({
-        error: "Stripe is not configured on the server",
-      });
-    }
+    return res.json(result);
 
-    const customers = await stripe.customers.list({
-      email,
-      limit: 1,
-    });
-
-    if (!customers.data || customers.data.length === 0) {
-      return res.status(404).json({
-        email,
-        status: "no_customer",
-        message: "No Stripe customer found for this email.",
-        current_time: currentTime,
-      });
-    }
-
-    const customer = customers.data[0];
-
-    // 2.4. Get subscriptions for this customer
-    const subscriptions = await stripe.subscriptions.list({
-      customer: customer.id,
-      status: "all",
-      limit: 10,
-    });
-
-    if (!subscriptions.data || subscriptions.data.length === 0) {
-      return res.status(404).json({
-        email,
-        customer_id: customer.id,
-        status: "no_subscriptions",
-        message: "Customer has no subscriptions.",
-        current_time: currentTime,
-      });
-    }
-
-    // Prefer active or trialing subscriptions
-    const preferred = subscriptions.data.find(
-      (sub) => sub.status === "active" || sub.status === "trialing"
-    ) || subscriptions.data[0];
-
-    const price = preferred.items?.data?.[0]?.price;
-    const productId = price?.product;
-
-    let productName = null;
-    if (productId) {
-      try {
-        const product = await stripe.products.retrieve(productId);
-        productName = product.name;
-      } catch {
-        productName = null;
-      }
-    }
-
-    const response = {
-      source: "stripe",
-      email,
-      customer_id: customer.id,
-      subscription_id: preferred.id,
-      status: preferred.status,
-      subscription_start_date: preferred.start_date
-        ? new Date(preferred.start_date * 1000).toISOString()
-        : null,
-      current_period_start: preferred.current_period_start
-        ? new Date(preferred.current_period_start * 1000).toISOString()
-        : null,
-      current_period_end: preferred.current_period_end
-        ? new Date(preferred.current_period_end * 1000).toISOString()
-        : null,
-      plan_id: price?.id || null,
-      plan_amount: price?.unit_amount
-        ? (price.unit_amount / 100).toFixed(2)
-        : null,
-      currency: price?.currency || null,
-      planNickname: productName || "all",
-      current_time: currentTime,
-    };
-
-    return res.json(response);
   } catch (err) {
     console.error("Error in /stripe/subscription-status:", err);
-    return res.status(500).json({
-      error: "Internal server error",
-      details: err.message,
-    });
+    return res.status(500).json({ error: "Internal server error", details: err.message });
   }
 });
 
@@ -960,15 +1059,43 @@ const saveProductNames = (names) => {
   fs.writeFileSync(filePath, JSON.stringify(names, null, 2));
 };
 
+// Helper to load product versions
+const loadProductVersions = (productName) => {
+  const productDir = path.join(__dirname, 'products', productName);
+  if (!fs.existsSync(productDir)) {
+    return [];
+  }
+  const filePath = path.join(productDir, 'versions.json');
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (e) {
+    return [];
+  }
+};
+
+// Helper to save product versions
+const saveProductVersions = (productName, versions) => {
+  const productDir = path.join(__dirname, 'products', productName);
+  if (!fs.existsSync(productDir)) {
+    fs.mkdirSync(productDir, { recursive: true });
+  }
+  const filePath = path.join(productDir, 'versions.json');
+  fs.writeFileSync(filePath, JSON.stringify(versions, null, 2));
+};
+
 /**
  * Download specific product by name
- * GET /download/:productName
+ * GET /download/:productName?v=version
  */
 app.get("/download/:productName", (req, res) => {
   const path = require('path');
   const fs = require('fs');
 
   const requested = req.params.productName;
+  const requestedVersion = req.query.v;
 
   const productNames = loadProductNames();
 
@@ -983,8 +1110,25 @@ app.get("/download/:productName", (req, res) => {
       .send("Invalid product name. Please use an exact name.");
   }
 
-  const folderPath = path.resolve(__dirname, "products", match);
-  const filePath = path.join(folderPath, `${match}.zip`);
+  let filePath;
+  const versions = loadProductVersions(match);
+
+  if (requestedVersion) {
+    // Download a specific version
+    filePath = path.join(__dirname, "products", match, requestedVersion, `${match}.zip`);
+  } else if (versions.length > 0) {
+    // Get the latest version (highest version number)
+    const sortedVersions = versions.sort((a, b) => {
+      const aNum = parseInt(a.version.replace('v', ''));
+      const bNum = parseInt(b.version.replace('v', ''));
+      return bNum - aNum;
+    });
+    const latest = sortedVersions[0];
+    filePath = path.join(__dirname, "products", match, latest.version, `${match}.zip`);
+  } else {
+    // Fallback to legacy file in root folder
+    filePath = path.join(__dirname, "products", match, `${match}.zip`);
+  }
 
   if (!fs.existsSync(filePath)) {
     return res.status(404).send("File not found.");
@@ -2901,7 +3045,9 @@ app.post('/api/pricing/products', authenticateToken, (req, res) => {
       featured: productData.featured || false,
       order: productData.order || existingProducts.length + 1,
       features: productData.features || [],
-      subscriptionLink: productData.subscriptionLink || ''
+      subscriptionLink: productData.subscriptionLink || '',
+      yearlyPrice: productData.yearlyPrice || 0,
+      yearlySubscriptionLink: productData.yearlySubscriptionLink || ''
     };
 
     const saved = savePricingProduct(newProduct);
@@ -3229,17 +3375,27 @@ app.get('/api/admin/product-assets', authenticateToken, (req, res) => {
     const names = loadProductNames();
     const assets = names.map(name => {
       const folderPath = path.resolve(__dirname, "products", name);
-      const filePath = path.join(folderPath, `${name}.zip`);
-      const exists = fs.existsSync(filePath);
-      let stats = null;
-      if (exists) {
-        const s = fs.statSync(filePath);
-        stats = {
+      const legacyFilePath = path.join(folderPath, `${name}.zip`);
+
+      const versions = loadProductVersions(name);
+
+      // Check if root file exists for legacy support
+      const legacyExists = fs.existsSync(legacyFilePath);
+      let legacyStats = null;
+      if (legacyExists) {
+        const s = fs.statSync(legacyFilePath);
+        legacyStats = {
           size: s.size,
           mtime: s.mtime
         };
       }
-      return { name, exists, stats };
+
+      return {
+        name,
+        exists: legacyExists || versions.length > 0,
+        stats: legacyStats || (versions.length > 0 ? { size: versions[0].size, mtime: versions[0].uploadDate } : null),
+        versions
+      };
     });
     res.json({ success: true, assets });
   } catch (error) {
@@ -3293,7 +3449,7 @@ app.delete('/api/admin/product-names/:name', authenticateToken, (req, res) => {
 const legacyAssetStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     const productName = req.params.name;
-    const uploadDir = path.join(__dirname, 'products', productName);
+    const uploadDir = path.join(__dirname, 'products', productName, 'temp');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -3316,23 +3472,84 @@ const uploadLegacyAsset = multer({
 app.post('/api/admin/product-assets/:name/upload', authenticateToken, uploadLegacyAsset.single('file'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file' });
-    res.json({ success: true, message: 'File uploaded' });
+
+    const productName = req.params.name;
+
+    // Get existing versions and determine next version number
+    let versions = loadProductVersions(productName);
+
+    // Find the highest version number
+    let maxVersion = 0;
+    versions.forEach(v => {
+      const vNum = parseInt(v.version.replace('v', ''));
+      if (!isNaN(vNum) && vNum > maxVersion) {
+        maxVersion = vNum;
+      }
+    });
+
+    const newVersion = `v${maxVersion + 1}`;
+
+    // Move the uploaded file to the correct versioned directory
+    const oldPath = req.file.path;
+    const versionDir = path.join(__dirname, 'products', productName, newVersion);
+    if (!fs.existsSync(versionDir)) {
+      fs.mkdirSync(versionDir, { recursive: true });
+    }
+    const newPath = path.join(versionDir, `${productName}.zip`);
+    fs.renameSync(oldPath, newPath);
+
+    const versionInfo = {
+      version: newVersion,
+      filename: `${productName}.zip`,
+      size: req.file.size,
+      uploadDate: new Date().toISOString(),
+    };
+
+    versions.push(versionInfo);
+
+    // Sort versions by version number (descending)
+    versions.sort((a, b) => {
+      const aNum = parseInt(a.version.replace('v', ''));
+      const bNum = parseInt(b.version.replace('v', ''));
+      return bNum - aNum;
+    });
+
+    saveProductVersions(productName, versions);
+
+    res.json({ success: true, message: 'File uploaded', version: versionInfo });
   } catch (error) {
+    console.error('Upload error:', error);
     res.status(500).json({ success: false, error: 'Upload failed' });
   }
 });
 
 /**
- * Delete a zip for a specific product name
+ * Delete a zip for a specific product name (and optionally specific version)
  */
 app.delete('/api/admin/product-assets/:name/file', authenticateToken, (req, res) => {
   try {
     const { name } = req.params;
-    const filePath = path.join(__dirname, 'products', name, `${name}.zip`);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    const { version } = req.query;
+
+    if (version) {
+      const versionDir = path.join(__dirname, 'products', name, version);
+      if (fs.existsSync(versionDir)) {
+        fs.rmSync(versionDir, { recursive: true, force: true });
+      }
+
+      let versions = loadProductVersions(name);
+      versions = versions.filter(v => v.version !== version);
+      saveProductVersions(name, versions);
+
+      res.json({ success: true, message: `Version ${version} deleted` });
+    } else {
+      // Delete legacy root file if no version specified
+      const filePath = path.join(__dirname, 'products', name, `${name}.zip`);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      res.json({ success: true, message: 'Legacy file deleted' });
     }
-    res.json({ success: true, message: 'File deleted' });
   } catch (error) {
     res.status(500).json({ success: false, error: 'Deletion failed' });
   }

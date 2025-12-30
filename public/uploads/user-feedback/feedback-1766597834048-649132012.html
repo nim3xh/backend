@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prop Trader Pro | Technests</title>
+  <meta name="description" content="Prop Trader Pro by Technests: Dr. Markets, TradeRx, and JournalX — a complete planning, execution, and journaling stack built for disciplined U.S. futures prop traders." />
+  <style>
+    :root{
+      --maxw: 1200px;
+      --pad-d: 84px;
+      --pad-t: 60px;
+      --pad-m: 44px;
+      --gap: 28px;
+      --bg: #ffffff;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --soft: #f6f7f9;
+      --dark: #0b1220;
+      --accent: #2563eb;
+      --accent2:#0ea5e9;
+      --radius: 16px;
+      --shadow: 0 10px 30px rgba(2,6,23,.08);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      color:#0f172a;
+      background:var(--bg);
+      line-height:1.55;
+    }
+    a{color:inherit; text-decoration:none}
+    .wrap{max-width:var(--maxw); margin:0 auto; padding:0 20px;}
+    .section{padding:var(--pad-d) 0; border-bottom:1px solid var(--line);}
+    @media (max-width: 1024px){ .section{padding:var(--pad-t) 0;} }
+    @media (max-width: 640px){ .section{padding:var(--pad-m) 0;} }
+    .kicker{font-size:12px; letter-spacing:.10em; text-transform:uppercase; color:var(--muted);}
+    h1{font-size:56px; margin:10px 0 14px; line-height:1.08;}
+    h2{font-size:38px; margin:0 0 14px; line-height:1.18;}
+    h3{font-size:24px; margin:0 0 10px;}
+    p{margin:0 0 12px; color:#111827;}
+    .muted{color:var(--muted)}
+    .row{display:flex; gap:var(--gap);}
+    .col{flex:1;}
+    .card{
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:18px;
+      background:#fff;
+      box-shadow:var(--shadow);
+      min-height: 40px;
+    }
+    .soft{background:var(--soft);}
+    .dark{background:var(--dark); color:#fff; border-bottom:0;}
+    .dark p, .dark .muted{color:#cbd5e1;}
+    .btns{display:flex; gap:12px; flex-wrap:wrap; margin-top:14px;}
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center;
+      padding:12px 16px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      font-weight:700;
+      background:#fff;
+      transition: transform .06s ease, box-shadow .12s ease, background .12s ease;
+    }
+    .btn:hover{transform: translateY(-1px);}
+    .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff;}
+    .btn.primary:hover{box-shadow:0 10px 18px rgba(37,99,235,.25);}
+    .btn.ghost{background:transparent;}
+    .chips{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;}
+    .chip{
+      font-size:12px; padding:6px 10px;
+      border-radius:999px; border:1px solid var(--line);
+      background:#fff; color:#0f172a;
+      display:inline-flex; gap:8px; align-items:center;
+    }
+    .chip .dot{width:8px; height:8px; border-radius:999px; background:var(--accent2);}
+    .placeholder{
+      border:1px dashed #94a3b8;
+      background:linear-gradient(135deg, rgba(148,163,184,.12), rgba(148,163,184,.04));
+      border-radius:14px;
+      display:flex; align-items:center; justify-content:center;
+      text-align:center;
+      padding:14px;
+      color:#334155;
+      font-family:var(--mono);
+      font-size:12px;
+      min-height: 140px;
+    }
+    .ph-note{margin-top:8px; font-size:12px; color:var(--muted); font-family:var(--mono);}
+    .nav{
+      position:sticky; top:0; z-index:50;
+      background:rgba(255,255,255,.9);
+      backdrop-filter:saturate(180%) blur(10px);
+      border-bottom:1px solid var(--line);
+    }
+    .nav-inner{
+      height:76px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:18px;
+    }
+    .nav-links{
+      display:flex; gap:12px; flex-wrap:wrap; align-items:center;
+      font-size:14px; color:#111827;
+    }
+    .nav-links a{padding:8px 10px; border-radius:12px; font-weight:650;}
+    .nav-links a:hover{background:#f1f5f9;}
+    .brand{
+      display:flex; align-items:center; gap:12px;
+      font-weight:900;
+      letter-spacing:.01em;
+    }
+    .brand .logo{
+      width:44px; height:44px; border-radius:14px;
+      background: radial-gradient(circle at 30% 30%, rgba(14,165,233,.9), rgba(37,99,235,.95));
+      display:flex; align-items:center; justify-content:center;
+      color:#fff; font-weight:900;
+      box-shadow:0 10px 26px rgba(37,99,235,.25);
+    }
+    .two-col{
+      display:grid;
+      grid-template-columns: 1.12fr .88fr;
+      gap:var(--gap);
+      align-items:start;
+    }
+    .grid2{display:grid; grid-template-columns:repeat(2, 1fr); gap:14px;}
+    .grid3{display:grid; grid-template-columns:repeat(3, 1fr); gap:var(--gap);}
+    .grid4{display:grid; grid-template-columns:repeat(4, 1fr); gap:var(--gap);}
+    @media (max-width: 1024px){
+      .two-col{grid-template-columns:1fr;}
+      .grid3{grid-template-columns:1fr;}
+      .grid4{grid-template-columns:repeat(2, 1fr);}
+      h1{font-size:44px;}
+      h2{font-size:32px;}
+    }
+    @media (max-width: 640px){
+      .grid4{grid-template-columns:1fr;}
+    }
+    .list{margin:10px 0 0; padding-left:18px;}
+    .list li{margin:7px 0;}
+    .pill{
+      display:inline-flex; align-items:center; gap:10px;
+      padding:8px 12px; border-radius:999px;
+      border:1px solid var(--line);
+      background:#fff;
+      font-size:13px;
+      font-weight:700;
+      color:#0f172a;
+    }
+    .pill strong{font-family:var(--mono); font-size:12px; color:#0f172a;}
+    .hr{height:1px; background:var(--line); margin:16px 0;}
+    .notice{
+      border:1px solid rgba(37,99,235,.25);
+      background:rgba(37,99,235,.06);
+      border-radius:14px;
+      padding:14px;
+      color:#0f172a;
+    }
+    .mini{font-size:12px; color:var(--muted);}
+    .tabs{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+    .tab{
+      border:1px solid var(--line); background:#fff; border-radius:999px;
+      padding:8px 12px; font-weight:800; font-size:13px; cursor:pointer;
+    }
+    .tab.active{border-color:rgba(37,99,235,.55); box-shadow:0 10px 24px rgba(37,99,235,.12);}
+    .badge{
+      font-size:12px; font-weight:900;
+      padding:6px 10px; border-radius:999px;
+      background:rgba(14,165,233,.10);
+      border:1px solid rgba(14,165,233,.22);
+      color:#0f172a;
+      display:inline-flex; align-items:center; gap:8px;
+    }
+    .badge .dot{width:8px; height:8px; border-radius:999px; background:var(--accent2);}
+    details{border:1px solid var(--line); border-radius:14px; padding:12px 14px; background:#fff;}
+    summary{cursor:pointer; font-weight:900;}
+    details p{margin-top:10px; color:var(--muted)}
+    .floating-cta{
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      padding: 10px 14px;
+      background: rgba(255,255,255,.96);
+      border-top: 1px solid var(--line);
+      backdrop-filter: saturate(180%) blur(10px);
+      display: none;
+      z-index: 60;
+    }
+    .floating-cta .wrap{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 12px;
+    }
+    .floating-cta .msg{
+      font-size: 12px;
+      color: #0f172a;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+    @media (max-width: 740px){
+      .floating-cta{display:block;}
+      body{padding-bottom:72px;}
+      .nav-links{display:none;}
+    }
+
+    /* Modal */
+    .modal{
+      display:none;
+      position:fixed; inset:0;
+      background:rgba(2,6,23,.62);
+      z-index: 70;
+      padding: 24px;
+      overflow:auto;
+    }
+    .modal .panel{
+      max-width: 940px;
+      margin: 48px auto;
+      background:#fff;
+      border-radius: 18px;
+      border:1px solid rgba(255,255,255,.2);
+      box-shadow: 0 22px 70px rgba(2,6,23,.35);
+      padding: 22px;
+    }
+    .modal .top{
+      display:flex; align-items:flex-start; justify-content:space-between; gap:16px;
+    }
+    .modal .close{
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius: 12px;
+      padding:10px 12px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .modal .yt{
+      margin-top: 14px;
+      border-radius: 14px;
+      overflow:hidden;
+      border:1px solid var(--line);
+      background:#0b1220;
+    }
+    .modal iframe{width:100%; height: 420px; border:0;}
+    .label{
+      font-family:var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .footer-cols{display:grid; grid-template-columns:repeat(3, 1fr); gap:var(--gap);}
+    @media (max-width: 1024px){ .footer-cols{grid-template-columns:1fr;} }
+    .tight p{margin-bottom:8px;}
+  </style>
+</head>
+<body>
+
+  <!-- Sticky Header -->
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <div class="brand" aria-label="Technests">
+        <div class="logo">t</div>
+        <div>
+          <div style="font-size:14px; font-weight:900;">Technests</div>
+          <div class="mini">Prop Trader Pro</div>
+        </div>
+      </div>
+
+      <nav class="nav-links" aria-label="Page navigation">
+        <a href="#overview">Overview</a>
+        <a href="#drmarkets">Dr. Markets</a>
+        <a href="#traderx">TradeRx</a>
+        <a href="#journalx">JournalX</a>
+        <a href="#proof">Proof</a>
+        <a href="#faq">FAQs</a>
+        <a href="#learn">Learn</a>
+        <a href="#pricing">Pricing</a>
+      </nav>
+
+      <div class="btns" style="margin:0;">
+        <a class="btn ghost" href="#learn">See how it works</a>
+        <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="section" id="hero">
+    <div class="wrap two-col">
+      <div class="col">
+        <div class="kicker">Planning • Execution • Review</div>
+        <h1>Prop Trader Pro</h1>
+        <p class="muted">A complete workflow stack from Technests for U.S. futures prop traders who want consistent behavior, clean review, and fewer emotional decisions.</p>
+
+        <div class="btns">
+          <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          <a class="btn" href="#proof">See real outputs</a>
+          <a class="btn" href="#watch">Watch walkthrough</a>
+        </div>
+
+        <div class="chips">
+          <span class="chip"><span class="dot"></span>Built around ES / NQ / GC workflows</span>
+          <span class="chip"><span class="dot"></span>NinjaTrader execution-ready structure</span>
+          <span class="chip"><span class="dot"></span>Designed to reduce overtrading and tilt</span>
+        </div>
+
+        <div class="hr"></div>
+
+        <div class="grid3">
+          <div class="card tight">
+            <div class="badge"><span class="dot"></span>Dr. Markets</div>
+            <p><strong>Plan the session</strong> using structure, volatility context, and decision-ready notes.</p>
+            <p class="mini">Best for traders who start the day reactive.</p>
+            <div class="btns"><a class="btn" href="#drmarkets">Explore Dr. Markets</a></div>
+          </div>
+          <div class="card tight">
+            <div class="badge"><span class="dot"></span>TradeRx</div>
+            <p><strong>Execute consistently</strong> with transparent logs and disciplined session behavior.</p>
+            <p class="mini">Best for traders who know the rules but break them.</p>
+            <div class="btns"><a class="btn" href="#traderx">Explore TradeRx</a></div>
+          </div>
+          <div class="card tight">
+            <div class="badge"><span class="dot"></span>JournalX</div>
+            <p><strong>Review intelligently</strong> and find repeatable improvements without guessing.</p>
+            <p class="mini">Best for traders who never get clean feedback loops.</p>
+            <div class="btns"><a class="btn" href="#journalx">Explore JournalX</a></div>
+          </div>
+        </div>
+
+        <div class="notice" style="margin-top:18px;">
+          <strong>Important:</strong> Prop Trader Pro is a workflow system. It is not a promise of profits or guaranteed evaluation passes. Your results depend on market conditions, risk settings, and your discipline.
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <div class="kicker">Real outputs area</div>
+          <h3 style="margin-top:8px;">Drop in your screenshots</h3>
+          <p class="muted">These placeholders are sized for clean, consistent presentation across desktop and mobile.</p>
+
+          <div class="tabs" role="tablist" aria-label="Outputs tabs">
+            <button class="tab active" data-target="tab-drm" role="tab" aria-selected="true">Dr. Markets</button>
+            <button class="tab" data-target="tab-traderx" role="tab" aria-selected="false">TradeRx</button>
+            <button class="tab" data-target="tab-journalx" role="tab" aria-selected="false">JournalX</button>
+          </div>
+
+          <div id="tab-drm" class="tabpane">
+            <div class="placeholder" style="min-height:360px;">HERO-OUTPUT-DRM-1600x900.png<br/>Display: 540 × 360</div>
+            <div class="ph-note">Recommended: Daily Market Summary + key zones.</div>
+          </div>
+
+          <div id="tab-traderx" class="tabpane" style="display:none;">
+            <div class="placeholder" style="min-height:360px;">HERO-OUTPUT-TRADERX-1600x900.png<br/>Display: 540 × 360</div>
+            <div class="ph-note">Recommended: Execution log + trade notes (redact account numbers).</div>
+          </div>
+
+          <div id="tab-journalx" class="tabpane" style="display:none;">
+            <div class="placeholder" style="min-height:360px;">HERO-OUTPUT-JOURNALX-1600x900.png<br/>Display: 540 × 360</div>
+            <div class="ph-note">Recommended: Weekly review dashboard + mistake tags.</div>
+          </div>
+
+          <div class="btns" style="margin-top:16px;">
+            <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+            <a class="btn" href="#learn">See on-page blogs</a>
+          </div>
+        </div>
+
+        <div class="card soft" style="margin-top:18px; box-shadow:none;">
+          <div class="kicker">Asset standards</div>
+          <p class="mini" style="margin:8px 0 0;">
+            Screenshots: <strong>1600×900</strong> preferred. Proof images: <strong>1200×900</strong> or <strong>1080×1080</strong>. Blog thumbnails: <strong>1280×720</strong>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fast Proof Strip -->
+  <section class="section soft">
+    <div class="wrap">
+      <div class="kicker">Proof you can show without hype</div>
+      <h2>Redacted trader results (placeholders)</h2>
+      <p class="muted">Keep outcomes honest: show routine, drawdown control, and consistency improvements. Redact account numbers and personal identifiers.</p>
+
+      <div class="grid4" style="margin-top:18px;">
+        <div class="card">
+          <div class="placeholder">PROOF-01-1080x1080.png</div>
+          <div class="ph-note">Caption: Evaluation consistency improved</div>
+        </div>
+        <div class="card">
+          <div class="placeholder">PROOF-02-1080x1080.png</div>
+          <div class="ph-note">Caption: Reduced impulse trades</div>
+        </div>
+        <div class="card">
+          <div class="placeholder">PROOF-03-1080x1080.png</div>
+          <div class="ph-note">Caption: Cleaner risk behavior</div>
+        </div>
+        <div class="card">
+          <div class="placeholder">PROOF-04-1080x1080.png</div>
+          <div class="ph-note">Caption: Better weekly review clarity</div>
+        </div>
+      </div>
+
+      <div class="btns" style="margin-top:18px;">
+        <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+        <a class="btn" href="#proof">See full proof section</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Band -->
+  <section class="section soft" id="cta-mid-1">
+    <div class="wrap two-col">
+      <div class="col">
+        <div class="kicker">Strategic CTA</div>
+        <h2 style="margin-top:10px;">Want to see real outputs before buying?</h2>
+        <p class="muted">Scroll once, then decide. This page is built to answer the questions real prop traders ask before committing.</p>
+      </div>
+      <div class="col">
+        <div class="btns" style="justify-content:flex-end;">
+          <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          <a class="btn" href="#faq">Read FAQs first</a>
+        </div>
+        <p class="mini" style="text-align:right; margin-top:10px;">Recommended: add 6–12 real trader quotes in the Proof section.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Overview -->
+  <section class="section" id="overview">
+    <div class="wrap">
+      <div class="kicker">What you get</div>
+      <h2>Three tools that form one workflow</h2>
+      <p class="muted">Most traders buy isolated tools. Prop Trader Pro is designed as a loop: plan → execute → review → improve.</p>
+
+      <div class="grid3" style="margin-top:18px;">
+        <div class="card">
+          <div class="badge"><span class="dot"></span>Dr. Markets</div>
+          <h3 style="margin-top:12px;">Session planning, without noise</h3>
+          <ul class="list">
+            <li>Session context: regime shifts, volatility posture, key zones</li>
+            <li>Decision-ready notes built for fast reading</li>
+            <li>Artifacts you can screenshot, archive, and review</li>
+          </ul>
+          <div class="btns">
+            <a class="btn" href="#drmarkets">See Dr. Markets</a>
+            <a class="btn primary" href="#pricing">Get the stack</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="badge"><span class="dot"></span>TradeRx</div>
+          <h3 style="margin-top:12px;">Execution discipline, made visible</h3>
+          <ul class="list">
+            <li>Consistent behavior aligned to session constraints</li>
+            <li>Transparent execution records for evaluation and funded review</li>
+            <li>Designed to reduce overtrading and revenge entries</li>
+          </ul>
+          <div class="btns">
+            <a class="btn" href="#traderx">See TradeRx</a>
+            <a class="btn primary" href="#pricing">Get the stack</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="badge"><span class="dot"></span>JournalX</div>
+          <h3 style="margin-top:12px;">Weekly review that actually changes outcomes</h3>
+          <ul class="list">
+            <li>Mistake tagging built around prop realities</li>
+            <li>Weekly dashboards for clarity, not overwhelm</li>
+            <li>Turn results into repeatable improvements</li>
+          </ul>
+          <div class="btns">
+            <a class="btn" href="#journalx">See JournalX</a>
+            <a class="btn primary" href="#pricing">Get the stack</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Watch -->
+  <section class="section" id="watch">
+    <div class="wrap two-col">
+      <div class="col">
+        <div class="kicker">Watch on-page</div>
+        <h2>Walkthrough video</h2>
+        <p class="muted">Embed your YouTube overview here. This keeps visitors on the page while they build trust.</p>
+
+        <div class="placeholder" style="min-height:360px;">YOUTUBE-EMBED (16:9)<br/>Replace with iframe</div>
+
+        <div class="btns">
+          <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          <a class="btn" href="#learn">Read on-page guides</a>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <div class="kicker">What this shows</div>
+          <h3 style="margin-top:8px;">A calm, repeatable routine</h3>
+          <ul class="list">
+            <li>How a session plan prevents “random clicking”</li>
+            <li>How execution becomes measurable and reviewable</li>
+            <li>How journaling reveals your recurring failure modes</li>
+            <li>How to use the stack for ES / NQ / GC workflows</li>
+            <li>What to screenshot for proof and accountability</li>
+          </ul>
+          <div class="hr"></div>
+          <p class="mini">Tip: Add a 4–8 minute overview first. Then link deeper videos below.</p>
+
+          <div class="btns">
+            <a class="btn" href="#videos">See tool videos</a>
+            <a class="btn primary" href="#pricing">Choose a package</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Dr. Markets -->
+  <section class="section" id="drmarkets">
+    <div class="wrap two-col">
+      <div class="col">
+        <div class="kicker">Dr. Markets</div>
+        <h2>Plan the session like a professional</h2>
+        <p>Dr. Markets is built for the moment most prop traders ignore: the ten minutes before the first click. It helps you frame the day in a way that reduces panic entries, early overconfidence, and the urge to “make back” a loss.</p>
+        <p class="muted">The output is designed to be screenshot-ready, so you can build a library of decisions and learn what you do when pressure rises.</p>
+
+        <ul class="list">
+          <li>Session framing: volatility posture and trend maturity</li>
+          <li>Structural zones: where trades make sense and where they do not</li>
+          <li>Failed highs/lows context for ES, NQ, and GC</li>
+          <li>Quick-read notes you can reference during the session</li>
+          <li>End-of-session recap artifacts for review</li>
+        </ul>
+
+        <div class="btns">
+          <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          <a class="btn" href="#learn">Read Dr. Markets guides</a>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <div class="kicker">Outputs gallery</div>
+          <h3 style="margin-top:8px;">Replace these with real screenshots</h3>
+          <div class="grid2" style="margin-top:12px;">
+            <div>
+              <div class="placeholder">DRM-GAL-01-1600x900.png</div>
+              <div class="ph-note">Daily market summary</div>
+            </div>
+            <div>
+              <div class="placeholder">DRM-GAL-02-1600x900.png</div>
+              <div class="ph-note">Key zones and structure</div>
+            </div>
+            <div>
+              <div class="placeholder">DRM-GAL-03-1600x900.png</div>
+              <div class="ph-note">Regime and volatility notes</div>
+            </div>
+            <div>
+              <div class="placeholder">DRM-GAL-04-1600x900.png</div>
+              <div class="ph-note">End-of-day recap snippet</div>
+            </div>
+          </div>
+
+          <div class="notice" style="margin-top:14px;">
+            <strong>Best practice:</strong> Add one short caption per screenshot explaining why it matters to a prop trader. Keep it practical.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA after Dr. Markets -->
+  <section class="section soft" id="cta-drm">
+    <div class="wrap two-col">
+      <div class="col">
+        <div class="kicker">Strategic CTA</div>
+        <h2 style="margin-top:10px;">If the plan is clear, execution gets easier.</h2>
+        <p class="muted">Next, show how TradeRx turns a plan into disciplined session behavior with clean execution logs.</p>
+      </div>
+      <div class="col">
+        <div class="btns" style="justify-content:flex-end;">
+          <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          <a class="btn" href="#traderx">Next: TradeRx</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TradeRx -->
+  <section class="section" id="traderx">
+    <div class="wrap two-col">
+      <div class="col">
+        <div class="kicker">TradeRx</div>
+        <h2>Execution discipline you can audit</h2>
+        <p>TradeRx is designed for the hardest part of prop trading: behaving the same way on a good day and a bad day. It emphasizes structured execution and transparent recordkeeping so you can review what happened without relying on memory.</p>
+        <p class="muted">Use TradeRx to reduce overtrading, impulse re-entries, and “one more trade” behavior that violates your own constraints.</p>
+
+        <div class="notice">
+          <strong>Compatibility note:</strong> TradeRx is designed for NinjaTrader execution workflows and U.S. futures instruments. Configure your session rules conservatively to match your prop firm.
+        </div>
+
+        <div class="btns">
+          <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          <a class="btn" href="#faq">TradeRx FAQs</a>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <div class="kicker">Execution artifacts</div>
+          <h3 style="margin-top:8px;">Use real logs, redact account numbers</h3>
+
+          <div class="placeholder" style="min-height:220px;">TRADERX-LOG-01-1600x900.png</div>
+          <div class="ph-note">Daily execution log (entry/exit, notes, PnL, compliance tags)</div>
+
+          <div class="grid2" style="margin-top:12px;">
+            <div>
+              <div class="placeholder" style="min-height:160px;">TRADERX-LOG-02-1600x900.png</div>
+              <div class="ph-note">Consistency snapshot</div>
+            </div>
+            <div>
+              <div class="placeholder" style="min-height:160px;">TRADERX-LOG-03-1600x900.png</div>
+              <div class="ph-note">Rules-aware notes</div>
+            </div>
+          </div>
+
+          <div class="hr"></div>
+          <div class="kicker">Objection handler</div>
+          <p class="mini"><strong>Not a guarantee.</strong> The goal is consistent behavior and reviewable decisions. Results vary based on settings, markets, and trader behavior.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA after TradeRx -->
+  <section class="section soft" id="cta-traderx">
+    <div class="wrap two-col">
+      <div class="col">
+        <div class="kicker">Strategic CTA</div>
+        <h2 style="margin-top:10px;">Execution discipline is measurable.</h2>
+        <p class="muted">JournalX is where the improvement compounds: weekly review, mistake tags, and clarity around what is working.</p>
+      </div>
+      <div class="col">
+        <div class="btns" style="justify-content:flex-end;">
+          <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          <a class="btn" href="#journalx">Next: JournalX</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- JournalX -->
+  <section class="section" id="journalx">
+    <div class="wrap two-col">
+      <div class="col">
+        <div class="kicker">JournalX</div>
+        <h2>Turn trading into feedback loops</h2>
+        <p>JournalX exists for a simple reason: most traders do not have a review system that is honest enough to expose patterns. It helps you see which setups you trade well, what you do when stressed, and what rules you break under pressure.</p>
+        <p class="muted">Use it as a weekly operational review. The goal is not journaling perfection. The goal is cleaner decisions.</p>
+
+        <ul class="list">
+          <li>Daily notes that tie decisions to market context</li>
+          <li>Mistake tagging based on prop realities</li>
+          <li>Weekly dashboards for clarity and accountability</li>
+          <li>Setup library: what you do well, repeated</li>
+          <li>Review prompts that reduce self-deception</li>
+        </ul>
+
+        <div class="btns">
+          <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          <a class="btn" href="#learn">Read JournalX guides</a>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <div class="kicker">Dashboards and reviews</div>
+          <h3 style="margin-top:8px;">Carousel-ready gallery</h3>
+          <div class="placeholder" style="min-height:240px;">JOURNALX-GAL-01..06-1600x900.png</div>
+          <div class="ph-note">Recommended: 4–6 slides (weekly dashboard, mistake tags, rules checklist, setups).</div>
+
+          <div class="hr"></div>
+          <div class="btns">
+            <a class="btn" href="#proof">See proof</a>
+            <a class="btn primary" href="#pricing">Choose package</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Workflow -->
+  <section class="section" id="workflow">
+    <div class="wrap">
+      <div class="kicker">How it works</div>
+      <h2>A repeatable daily loop</h2>
+      <p class="muted">This is the operational structure Prop Trader Pro is built around.</p>
+
+      <div class="grid3" style="margin-top:18px;">
+        <div class="card">
+          <div class="pill">Step 1 <strong>Plan</strong></div>
+          <h3 style="margin-top:12px;">Use Dr. Markets</h3>
+          <p>Frame the session. Decide what matters today. Identify where you will not trade.</p>
+        </div>
+        <div class="card">
+          <div class="pill">Step 2 <strong>Execute</strong></div>
+          <h3 style="margin-top:12px;">Use TradeRx</h3>
+          <p>Execute with consistent session behavior and create clean, reviewable artifacts.</p>
+        </div>
+        <div class="card">
+          <div class="pill">Step 3 <strong>Review</strong></div>
+          <h3 style="margin-top:12px;">Use JournalX</h3>
+          <p>Tag mistakes, capture context, and build a weekly feedback loop that compounds.</p>
+        </div>
+      </div>
+
+      <div class="btns" style="margin-top:18px;">
+        <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+        <a class="btn" href="#learn">Learn on-page</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Proof -->
+  <section class="section" id="proof">
+    <div class="wrap two-col">
+      <div class="col">
+        <div class="kicker">Trader proof</div>
+        <h2>Reviews + redacted results</h2>
+        <p class="muted">Replace these examples with real quotes and screenshots. Keep it compliance-safe: no guarantees, no exaggerated claims.</p>
+
+        <div class="card">
+          <div class="kicker">Quote carousel content (replace)</div>
+          <div class="hr"></div>
+          <p><strong>“I stopped overtrading once the day had structure.”</strong></p>
+          <p class="muted">Evaluation trader • ES workflow</p>
+          <div class="hr"></div>
+          <p><strong>“The logs made it obvious what I repeat when I’m stressed.”</strong></p>
+          <p class="muted">Funded trader • NQ workflow</p>
+          <div class="hr"></div>
+          <p><strong>“Weekly review changed my decision quality more than any indicator.”</strong></p>
+          <p class="muted">Prop trader • GC workflow</p>
+        </div>
+
+        <div class="btns">
+          <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          <a class="btn" href="#faq">Read FAQs</a>
+        </div>
+      </div>
+
+      <div class="col">
+        <div class="card">
+          <div class="kicker">Redacted proof grid</div>
+          <h3 style="margin-top:8px;">6 proof images (replace)</h3>
+
+          <div class="grid3" style="margin-top:12px;">
+            <div><div class="placeholder">PROOF-01-1200x900.png</div><div class="ph-note">Caption: drawdown stabilized</div></div>
+            <div><div class="placeholder">PROOF-02-1200x900.png</div><div class="ph-note">Caption: fewer revenge trades</div></div>
+            <div><div class="placeholder">PROOF-03-1200x900.png</div><div class="ph-note">Caption: consistent schedule</div></div>
+            <div><div class="placeholder">PROOF-04-1200x900.png</div><div class="ph-note">Caption: cleaner review</div></div>
+            <div><div class="placeholder">PROOF-05-1200x900.png</div><div class="ph-note">Caption: rule adherence</div></div>
+            <div><div class="placeholder">PROOF-06-1200x900.png</div><div class="ph-note">Caption: weekly improvement</div></div>
+          </div>
+
+          <div class="notice" style="margin-top:14px;">
+            <strong>Redaction tip:</strong> Remove account numbers, emails, and any identifiers. Keep dates and summary lines where possible for credibility.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQs -->
+  <section class="section" id="faq">
+    <div class="wrap">
+      <div class="kicker">FAQs</div>
+      <h2>Answers to real trader concerns</h2>
+      <p class="muted">These are written for the questions traders actually ask: compatibility, rules risk, expectations, and how to use each tool without confusion.</p>
+
+      <div class="grid3" style="margin-top:18px;">
+        <div class="card">
+          <h3>Dr. Markets</h3>
+
+          <details><summary>Is Dr. Markets an indicator or a planning tool?</summary>
+            <p>Dr. Markets is a planning and context tool. It is designed to help you frame the session (structure, volatility posture, zones) so your decisions are deliberate instead of reactive.</p>
+          </details>
+
+          <details><summary>Does it tell me exactly when to buy and sell?</summary>
+            <p>No. It is designed to improve decision quality and reduce noise. It supports trading judgment rather than replacing it with constant alerts.</p>
+          </details>
+
+          <details><summary>Does it work for ES, NQ, and GC?</summary>
+            <p>Yes. The workflow is designed around U.S. futures use cases, with ES, NQ, and GC as primary examples.</p>
+          </details>
+
+          <details><summary>How do I use it day-to-day?</summary>
+            <p>Use it as a short pre-session read, reference it during the session, and archive the output for post-session review.</p>
+          </details>
+        </div>
+
+        <div class="card">
+          <h3>TradeRx</h3>
+
+          <details><summary>Is TradeRx compatible with NinjaTrader?</summary>
+            <p>TradeRx is designed around NinjaTrader execution workflows. You configure it to match your preferred session constraints and risk posture.</p>
+          </details>
+
+          <details><summary>Will this violate prop firm rules?</summary>
+            <p>Prop firms differ. The intent is rules-aware behavior and consistency. You should configure TradeRx conservatively to align with your specific firm’s constraints and permitted trading methods.</p>
+          </details>
+
+          <details><summary>Does TradeRx guarantee passing evaluations?</summary>
+            <p>No. Prop Trader Pro is a system for consistent behavior and review. Results vary based on settings, markets, and trader discipline.</p>
+          </details>
+
+          <details><summary>What should I show as “proof” on this page?</summary>
+            <p>Show execution logs and session behavior artifacts. Redact account numbers. Focus on routine, consistency, and review clarity rather than implying guaranteed outcomes.</p>
+          </details>
+        </div>
+
+        <div class="card">
+          <h3>JournalX</h3>
+
+          <details><summary>Is JournalX only for automation users?</summary>
+            <p>No. Manual traders and system traders both benefit. The journaling structure is about capturing context, decisions, mistakes, and review outcomes.</p>
+          </details>
+
+          <details><summary>Do I need to journal every trade?</summary>
+            <p>No. JournalX is designed for sustainability. Even a weekly review with consistent tags and notes can produce meaningful improvements.</p>
+          </details>
+
+          <details><summary>What is the main benefit?</summary>
+            <p>Faster learning cycles. It shortens the gap between making a mistake and fixing it by making patterns obvious and reviewable.</p>
+          </details>
+
+          <details><summary>How do I connect JournalX to the rest of the workflow?</summary>
+            <p>Use Dr. Markets for context, TradeRx for clean execution artifacts, then JournalX for review and pattern discovery.</p>
+          </details>
+        </div>
+      </div>
+
+      <div class="btns" style="margin-top:18px;">
+        <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+        <a class="btn" href="#learn">Read guides on-page</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Learn on-page (Blogs) -->
+  <section class="section" id="learn">
+    <div class="wrap">
+      <div class="kicker">Learn on-page</div>
+      <h2>Blogs that keep the visitor here</h2>
+      <p class="muted">Each card opens a mini-article modal and includes an on-page video embed. Replace the content and YouTube IDs later.</p>
+
+      <div class="grid3" style="margin-top:18px;">
+        <!-- Dr. Markets blogs -->
+        <div class="card">
+          <h3>Dr. Markets guides</h3>
+          <div class="hr"></div>
+
+          <div class="placeholder">BLOG-THUMB-01-1280x720.png</div>
+          <p style="margin-top:10px;"><strong>How to read a futures session like a professional</strong></p>
+          <p class="muted">Structure-first planning for ES, NQ, and GC without indicator overload.</p>
+          <div class="btns">
+            <button class="btn primary" data-open="modal-drm-1">Read here</button>
+            <a class="btn" href="#watch">Watch</a>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="placeholder">BLOG-THUMB-02-1280x720.png</div>
+          <p style="margin-top:10px;"><strong>Volatility regimes and why traders feel “out of sync”</strong></p>
+          <p class="muted">A practical way to stop forcing trades when the market changes character.</p>
+          <div class="btns">
+            <button class="btn primary" data-open="modal-drm-2">Read here</button>
+            <a class="btn" href="#videos">Watch</a>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="placeholder">BLOG-THUMB-03-1280x720.png</div>
+          <p style="margin-top:10px;"><strong>Structural zones: where your best trades actually live</strong></p>
+          <p class="muted">How to stop trading the middle and start trading decision points.</p>
+          <div class="btns">
+            <button class="btn primary" data-open="modal-drm-3">Read here</button>
+            <a class="btn" href="#videos">Watch</a>
+          </div>
+        </div>
+
+        <!-- TradeRx blogs -->
+        <div class="card">
+          <h3>TradeRx guides</h3>
+          <div class="hr"></div>
+
+          <div class="placeholder">BLOG-THUMB-04-1280x720.png</div>
+          <p style="margin-top:10px;"><strong>The consistency problem: why traders fail evaluations</strong></p>
+          <p class="muted">The hidden mechanics of drawdown pressure and impulse entries.</p>
+          <div class="btns">
+            <button class="btn primary" data-open="modal-traderx-1">Read here</button>
+            <a class="btn" href="#watch">Watch</a>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="placeholder">BLOG-THUMB-05-1280x720.png</div>
+          <p style="margin-top:10px;"><strong>Execution discipline: the real edge in prop trading</strong></p>
+          <p class="muted">How to create reviewable behavior without relying on willpower.</p>
+          <div class="btns">
+            <button class="btn primary" data-open="modal-traderx-2">Read here</button>
+            <a class="btn" href="#videos">Watch</a>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="placeholder">BLOG-THUMB-06-1280x720.png</div>
+          <p style="margin-top:10px;"><strong>How to build a rules-first daily routine</strong></p>
+          <p class="muted">A practical routine built around windows, limits, and review.</p>
+          <div class="btns">
+            <button class="btn primary" data-open="modal-traderx-3">Read here</button>
+            <a class="btn" href="#videos">Watch</a>
+          </div>
+        </div>
+
+        <!-- JournalX blogs -->
+        <div class="card">
+          <h3>JournalX guides</h3>
+          <div class="hr"></div>
+
+          <div class="placeholder">BLOG-THUMB-07-1280x720.png</div>
+          <p style="margin-top:10px;"><strong>The weekly review that actually improves results</strong></p>
+          <p class="muted">A review system that exposes patterns without self-deception.</p>
+          <div class="btns">
+            <button class="btn primary" data-open="modal-journalx-1">Read here</button>
+            <a class="btn" href="#watch">Watch</a>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="placeholder">BLOG-THUMB-08-1280x720.png</div>
+          <p style="margin-top:10px;"><strong>Tagging mistakes: the fastest path to progress</strong></p>
+          <p class="muted">Turn repeated errors into a predictable improvement plan.</p>
+          <div class="btns">
+            <button class="btn primary" data-open="modal-journalx-2">Read here</button>
+            <a class="btn" href="#videos">Watch</a>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="placeholder">BLOG-THUMB-09-1280x720.png</div>
+          <p style="margin-top:10px;"><strong>Build a “best setups” library for ES, NQ, and GC</strong></p>
+          <p class="muted">Stop chasing new strategies. Document what you already do well.</p>
+          <div class="btns">
+            <button class="btn primary" data-open="modal-journalx-3">Read here</button>
+            <a class="btn" href="#videos">Watch</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="btns" style="margin-top:18px;">
+        <a class="btn primary" href="#pricing">See pricing</a>
+        <a class="btn" href="#hero">Back to top</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Product videos strip -->
+  <section class="section" id="videos">
+    <div class="wrap">
+      <div class="kicker">Videos</div>
+      <h2>Tool-specific walkthroughs</h2>
+      <p class="muted">Replace placeholders with YouTube embeds. Keep these on-page to maximize time-on-site.</p>
+
+      <div class="grid3" style="margin-top:18px;">
+        <div class="card">
+          <h3>Dr. Markets walkthrough</h3>
+          <div class="placeholder">VIDEO-DRM-640x360 (embed)</div>
+          <div class="btns">
+            <a class="btn" href="#drmarkets">Back to Dr. Markets</a>
+            <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          </div>
+        </div>
+        <div class="card">
+          <h3>TradeRx workflow</h3>
+          <div class="placeholder">VIDEO-TRADERX-640x360 (embed)</div>
+          <div class="btns">
+            <a class="btn" href="#traderx">Back to TradeRx</a>
+            <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          </div>
+        </div>
+        <div class="card">
+          <h3>JournalX weekly review</h3>
+          <div class="placeholder">VIDEO-JOURNALX-640x360 (embed)</div>
+          <div class="btns">
+            <a class="btn" href="#journalx">Back to JournalX</a>
+            <a class="btn primary" href="#pricing">Get Prop Trader Pro</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section class="section" id="pricing">
+    <div class="wrap">
+      <div class="kicker">Pricing</div>
+      <h2>Choose your Prop Trader Pro package</h2>
+      <p class="muted">Replace the prices and inclusions with your real offer. This structure is designed to convert without hype.</p>
+
+      <div class="grid3" style="margin-top:18px;">
+        <div class="card">
+          <h3>Starter</h3>
+          <p class="muted">Price: $___ / month</p>
+          <ul class="list">
+            <li>Dr. Markets</li>
+            <li>TradeRx</li>
+            <li>JournalX</li>
+            <li>Email support</li>
+            <li>Updates included</li>
+          </ul>
+          <div class="btns">
+            <a class="btn primary" href="#cta">Choose Starter</a>
+            <a class="btn" href="#faq">Questions?</a>
+          </div>
+          <p class="mini">Best for: single-account traders and beginners.</p>
+        </div>
+
+        <div class="card" style="border-color: rgba(37,99,235,.35);">
+          <div class="badge"><span class="dot"></span>Most chosen</div>
+          <h3 style="margin-top:12px;">Growth</h3>
+          <p class="muted">Price: $___ / month</p>
+          <ul class="list">
+            <li>Everything in Starter</li>
+            <li>Enhanced outputs & reporting templates</li>
+            <li>Priority support</li>
+            <li>Expanded on-page guides</li>
+            <li>Best for multiple evaluations</li>
+          </ul>
+          <div class="btns">
+            <a class="btn primary" href="#cta">Choose Growth</a>
+            <a class="btn" href="#proof">See proof</a>
+          </div>
+          <p class="mini">Best for: traders running multiple evaluations/funded accounts.</p>
+        </div>
+
+        <div class="card">
+          <h3>Elite</h3>
+          <p class="muted">Price: $___ / month</p>
+          <ul class="list">
+            <li>Everything in Growth</li>
+            <li>Advanced review framework templates</li>
+            <li>Fast support response</li>
+            <li>Best for high-frequency review needs</li>
+            <li>Team use cases (if applicable)</li>
+          </ul>
+          <div class="btns">
+            <a class="btn primary" href="#cta">Choose Elite</a>
+            <a class="btn" href="#learn">See guides</a>
+          </div>
+          <p class="mini">Best for: serious operators who want full accountability.</p>
+        </div>
+      </div>
+
+      <div class="grid3" style="margin-top:18px;">
+        <div class="card soft" style="box-shadow:none;">
+          <h3>Setup expectations</h3>
+          <p class="muted">Add your realistic setup time and required steps. Keep it simple.</p>
+        </div>
+        <div class="card soft" style="box-shadow:none;">
+          <h3>Compatibility</h3>
+          <p class="muted">State supported platform(s) clearly and avoid ambiguous promises.</p>
+        </div>
+        <div class="card soft" style="box-shadow:none;">
+          <h3>Support</h3>
+          <p class="muted">List support channels and typical response times (if you want).</p>
+        </div>
+      </div>
+
+      <div class="btns" style="margin-top:18px;">
+        <a class="btn primary" href="#cta">Proceed</a>
+        <a class="btn" href="#hero">Review overview</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="section dark" id="cta">
+    <div class="wrap two-col">
+      <div class="col">
+        <div class="kicker" style="color:#94a3b8;">Final step</div>
+        <h2 style="margin-top:10px; color:#fff;">Build a routine you can repeat</h2>
+        <p class="muted">If you want fewer emotional decisions and cleaner review, Prop Trader Pro is designed for that job.</p>
+        <p class="mini">Replace this CTA with your checkout link, payment page, or contact form.</p>
+      </div>
+      <div class="col">
+        <div class="card" style="background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.10); box-shadow:none;">
+          <h3 style="margin-top:0; color:#fff;">Primary action</h3>
+          <p class="muted">Add your checkout URL here.</p>
+          <div class="btns">
+            <a class="btn primary" href="#" onclick="alert('Replace this with your checkout link.'); return false;">Go to checkout</a>
+            <a class="btn ghost" href="#faq" style="color:#fff; border-color:#334155;">Read FAQs</a>
+          </div>
+          <div class="hr" style="background: rgba(255,255,255,.14);"></div>
+          <p class="mini">Compliance reminder: avoid guaranteed claims. Focus on workflow, discipline, and review.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="section" style="border-bottom:0;">
+    <div class="wrap">
+      <div class="footer-cols">
+        <div class="card">
+          <h3>Technests</h3>
+          <p class="muted">Prop Trader Pro product page template. Replace content, screenshots, and embeds as needed.</p>
+          <p class="mini">Brand note: always use “Technests”.</p>
+        </div>
+        <div class="card">
+          <h3>Sections</h3>
+          <ul class="list">
+            <li><a href="#drmarkets">Dr. Markets</a></li>
+            <li><a href="#traderx">TradeRx</a></li>
+            <li><a href="#journalx">JournalX</a></li>
+            <li><a href="#learn">Learn</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Assets checklist</h3>
+          <ul class="list">
+            <li>Hero screenshots: 3 (1600×900)</li>
+            <li>Dr. Markets: 4 (1600×900)</li>
+            <li>TradeRx: 3 (1600×900)</li>
+            <li>JournalX: 4–6 (1600×900)</li>
+            <li>Proof: 6 (1200×900 or 1080×1080)</li>
+            <li>Blog thumbs: 9 (1280×720)</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="mini" style="margin-top:18px;">© Technests. Replace this footer with your site footer.</p>
+    </div>
+  </footer>
+
+  <!-- Floating CTA (mobile) -->
+  <div class="floating-cta" role="region" aria-label="Quick action">
+    <div class="wrap">
+      <div class="msg">Prop Trader Pro • Proof + Pricing</div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <a class="btn" href="#proof" style="padding:10px 12px;">Proof</a>
+        <a class="btn primary" href="#pricing" style="padding:10px 12px;">Pricing</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modals (Mini-articles) -->
+  <div class="modal" id="modal-drm-1" aria-hidden="true">
+    <div class="panel">
+      <div class="top">
+        <div>
+          <div class="label">Dr. Markets • Mini-article</div>
+          <h3>How to read a futures session like a professional</h3>
+          <p class="muted">This is an on-page mini version. Replace with your real article later.</p>
+        </div>
+        <button class="close" data-close>Close</button>
+      </div>
+      <div class="hr"></div>
+      <p>A professional session read is less about prediction and more about posture. Before the first trade, you want a clear answer to three questions: What kind of day is this? Where do decisions matter? Where do trades become low-quality noise?</p>
+      <p>For ES, NQ, and GC, the “middle of nowhere” is where discipline dies. Your goal is to define decision points—zones where the market either accepts price or rejects it—and only take risk when the market is actually making a decision.</p>
+      <p>Use structure zones to prevent early-session overconfidence. If the market is choppy and mean-reverting, you trade smaller or trade less. If the market is trending cleanly, you stop fighting it and focus on higher-quality entries.</p>
+      <div class="notice" style="margin-top:14px;">
+        <strong>On-page CTA:</strong> Replace this mini-article with your real post and link to the full blog page.
+      </div>
+      <div class="yt">
+        <iframe title="YouTube placeholder" src="about:blank"></iframe>
+      </div>
+      <div class="btns">
+        <a class="btn primary" href="#pricing" data-close>Get Prop Trader Pro</a>
+        <a class="btn" href="#" onclick="alert('Replace with full blog URL'); return false;">Read full article</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-drm-2" aria-hidden="true">
+    <div class="panel">
+      <div class="top">
+        <div>
+          <div class="label">Dr. Markets • Mini-article</div>
+          <h3>Volatility regimes and why traders feel out of sync</h3>
+          <p class="muted">Replace with your real article later.</p>
+        </div>
+        <button class="close" data-close>Close</button>
+      </div>
+      <div class="hr"></div>
+      <p>When traders feel “out of sync,” the market has usually changed regime. A strategy that works in smooth conditions fails in noisy conditions, and the trader interprets that failure as personal incompetence.</p>
+      <p>Your job is to recognize the regime early, then adapt risk and expectations. In higher volatility, reduce size, widen expectations, and become more selective. In lower volatility, avoid forcing trades that need movement that is not there.</p>
+      <div class="yt"><iframe title="YouTube placeholder" src="about:blank"></iframe></div>
+      <div class="btns">
+        <a class="btn primary" href="#pricing" data-close>Get Prop Trader Pro</a>
+        <a class="btn" href="#" onclick="alert('Replace with full blog URL'); return false;">Read full article</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-drm-3" aria-hidden="true">
+    <div class="panel">
+      <div class="top">
+        <div>
+          <div class="label">Dr. Markets • Mini-article</div>
+          <h3>Structural zones: where your best trades actually live</h3>
+          <p class="muted">Replace with your real article later.</p>
+        </div>
+        <button class="close" data-close>Close</button>
+      </div>
+      <div class="hr"></div>
+      <p>Most losing prop behavior happens between meaningful prices. Structural zones are areas where the market has a reason to decide: prior highs and lows, failed breaks, acceptance zones, and areas of repeated rejection.</p>
+      <p>When you anchor your trading to zones, you naturally trade less. You stop “hunting” and start waiting for a decision. That shift alone eliminates many low-quality entries.</p>
+      <div class="yt"><iframe title="YouTube placeholder" src="about:blank"></iframe></div>
+      <div class="btns">
+        <a class="btn primary" href="#pricing" data-close>Get Prop Trader Pro</a>
+        <a class="btn" href="#" onclick="alert('Replace with full blog URL'); return false;">Read full article</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-traderx-1" aria-hidden="true">
+    <div class="panel">
+      <div class="top">
+        <div>
+          <div class="label">TradeRx • Mini-article</div>
+          <h3>The consistency problem: why traders fail evaluations</h3>
+          <p class="muted">Replace with your real article later.</p>
+        </div>
+        <button class="close" data-close>Close</button>
+      </div>
+      <div class="hr"></div>
+      <p>Most evaluation failures are not strategy failures. They are behavior failures under drawdown pressure. A trader trades normally for a while, then breaks their own rules when the account gets uncomfortable.</p>
+      <p>Consistency comes from constraints. When session behavior is defined and reviewable, you stop negotiating with yourself in the moment.</p>
+      <div class="yt"><iframe title="YouTube placeholder" src="about:blank"></iframe></div>
+      <div class="btns">
+        <a class="btn primary" href="#pricing" data-close>Get Prop Trader Pro</a>
+        <a class="btn" href="#" onclick="alert('Replace with full blog URL'); return false;">Read full article</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-traderx-2" aria-hidden="true">
+    <div class="panel">
+      <div class="top">
+        <div>
+          <div class="label">TradeRx • Mini-article</div>
+          <h3>Execution discipline: the real edge in prop trading</h3>
+          <p class="muted">Replace with your real article later.</p>
+        </div>
+        <button class="close" data-close>Close</button>
+      </div>
+      <div class="hr"></div>
+      <p>Execution discipline is the edge because it is rare. Traders under stress become inconsistent: they change size, change setups, chase, and widen risk. Discipline is simply repeatable behavior.</p>
+      <p>When your day produces clean logs and clear outcomes, you can improve. Without that, you stay stuck in “maybe” and “I think.”</p>
+      <div class="yt"><iframe title="YouTube placeholder" src="about:blank"></iframe></div>
+      <div class="btns">
+        <a class="btn primary" href="#pricing" data-close>Get Prop Trader Pro</a>
+        <a class="btn" href="#" onclick="alert('Replace with full blog URL'); return false;">Read full article</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-traderx-3" aria-hidden="true">
+    <div class="panel">
+      <div class="top">
+        <div>
+          <div class="label">TradeRx • Mini-article</div>
+          <h3>How to build a rules-first daily routine</h3>
+          <p class="muted">Replace with your real article later.</p>
+        </div>
+        <button class="close" data-close>Close</button>
+      </div>
+      <div class="hr"></div>
+      <p>A rules-first routine is simple: you decide your windows, risk posture, and stop conditions before the session begins. Your goal is to eliminate decision-making during emotional moments.</p>
+      <p>Keep the routine short enough to sustain. Then review weekly. That is how consistency becomes real.</p>
+      <div class="yt"><iframe title="YouTube placeholder" src="about:blank"></iframe></div>
+      <div class="btns">
+        <a class="btn primary" href="#pricing" data-close>Get Prop Trader Pro</a>
+        <a class="btn" href="#" onclick="alert('Replace with full blog URL'); return false;">Read full article</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-journalx-1" aria-hidden="true">
+    <div class="panel">
+      <div class="top">
+        <div>
+          <div class="label">JournalX • Mini-article</div>
+          <h3>The weekly review that actually improves results</h3>
+          <p class="muted">Replace with your real article later.</p>
+        </div>
+        <button class="close" data-close>Close</button>
+      </div>
+      <div class="hr"></div>
+      <p>A weekly review works when it is honest, specific, and repeatable. Review your best trades and your worst trades, then look for one recurring behavior to fix next week.</p>
+      <p>Most traders fail here because they review emotionally. JournalX is designed to keep the review operational and evidence-based.</p>
+      <div class="yt"><iframe title="YouTube placeholder" src="about:blank"></iframe></div>
+      <div class="btns">
+        <a class="btn primary" href="#pricing" data-close>Get Prop Trader Pro</a>
+        <a class="btn" href="#" onclick="alert('Replace with full blog URL'); return false;">Read full article</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-journalx-2" aria-hidden="true">
+    <div class="panel">
+      <div class="top">
+        <div>
+          <div class="label">JournalX • Mini-article</div>
+          <h3>Tagging mistakes: the fastest path to progress</h3>
+          <p class="muted">Replace with your real article later.</p>
+        </div>
+        <button class="close" data-close>Close</button>
+      </div>
+      <div class="hr"></div>
+      <p>Mistake tags turn “I blew it” into “I know exactly what happened.” A small set of tags—overtrading, chasing, early entry, late exit, revenge—can reveal your dominant failure mode.</p>
+      <p>Once you can name the pattern, you can build a simple constraint to reduce it.</p>
+      <div class="yt"><iframe title="YouTube placeholder" src="about:blank"></iframe></div>
+      <div class="btns">
+        <a class="btn primary" href="#pricing" data-close>Get Prop Trader Pro</a>
+        <a class="btn" href="#" onclick="alert('Replace with full blog URL'); return false;">Read full article</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-journalx-3" aria-hidden="true">
+    <div class="panel">
+      <div class="top">
+        <div>
+          <div class="label">JournalX • Mini-article</div>
+          <h3>Build a best setups library for ES, NQ, and GC</h3>
+          <p class="muted">Replace with your real article later.</p>
+        </div>
+        <button class="close" data-close>Close</button>
+      </div>
+      <div class="hr"></div>
+      <p>A best setups library is not a marketing concept. It is how you stop strategy hopping. Capture the conditions, the entry logic, and the context for the trades you execute well.</p>
+      <p>Over time, this becomes your personal playbook—the only one that truly matters.</p>
+      <div class="yt"><iframe title="YouTube placeholder" src="about:blank"></iframe></div>
+      <div class="btns">
+        <a class="btn primary" href="#pricing" data-close>Get Prop Trader Pro</a>
+        <a class="btn" href="#" onclick="alert('Replace with full blog URL'); return false;">Read full article</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Tabs (hero)
+    const tabs = document.querySelectorAll('.tab');
+    const panes = ['tab-drm','tab-traderx','tab-journalx'].map(id => document.getElementById(id));
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabs.forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        panes.forEach(p => p.style.display = 'none');
+        const target = document.getElementById(btn.dataset.target);
+        if(target) target.style.display = 'block';
+      });
+    });
+
+    // Modals (learn section)
+    const openers = document.querySelectorAll('[data-open]');
+    const modals = document.querySelectorAll('.modal');
+
+    function openModal(id){
+      const m = document.getElementById(id);
+      if(!m) return;
+      m.style.display = 'block';
+      m.setAttribute('aria-hidden','false');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeModal(m){
+      m.style.display = 'none';
+      m.setAttribute('aria-hidden','true');
+      document.body.style.overflow = '';
+    }
+
+    openers.forEach(b => b.addEventListener('click', () => openModal(b.dataset.open)));
+
+    modals.forEach(m => {
+      m.addEventListener('click', (e) => {
+        if(e.target === m) closeModal(m);
+      });
+      m.querySelectorAll('[data-close]').forEach(c => c.addEventListener('click', () => closeModal(m)));
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if(e.key === 'Escape'){
+        modals.forEach(m => {
+          if(m.style.display === 'block') closeModal(m);
+        });
+      }
+    });
+  </script>
+
+</body>
+</html>
