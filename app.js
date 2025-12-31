@@ -467,7 +467,6 @@ async function checkSubscriptionStatus(emailInput) {
   }
 }
 
-/*
 app.post('/api/upload-feedback', uploadFeedback.single('file'), async (req, res) => {
   const file = req.file;
   const email = req.body.email; // Expect email in body
@@ -515,13 +514,11 @@ app.post('/api/upload-feedback', uploadFeedback.single('file'), async (req, res)
     res.status(500).json({ success: false, message: 'Server error during validation.' });
   }
 });
-*/
 
 /**
  * Get list of uploaded feedbacks
  * GET /api/feedbacks
  */
-/*
 app.get('/api/feedbacks', (req, res) => {
   const feedbackDir = path.join(__dirname, 'public/uploads/user-feedback');
 
@@ -546,7 +543,6 @@ app.get('/api/feedbacks', (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to list feedbacks' });
   }
 });
-*/
 
 
 // ==== STRIPE CLIENT ====
